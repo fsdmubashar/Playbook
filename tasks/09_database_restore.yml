@@ -1,0 +1,127 @@
+---
+# Task 09: Database create aur SQL import (Fresh Recovery)
+#
+# - mysql_* modules: login_unix_socket for passwordless root (local MariaDB)
+# - Import path: always /tmp/{{ app_name }}_restore.sql on TARGET after copy
+# - sql_dump_path: path on CONTROLLER (local file) OR "none" / "auto"
+# - Merge mode: optional INSERT-only / strip DROP lines (see sql_import_merge_mode)
+
+- name: "DB | '{{ db_name }}' create"
+  mysql_db:
+    name: "{{ db_name }}"
+    state: present
+    login_unix_socket: "{{ mysql_login_unix_socket }}"
+    encoding: utf8mb4
+    collation: utf8mb4_unicode_ci
+
+- name: "DB | '{{ db_user }}' user create (all hosts)"
+  mysql_user:
+    name: "{{ db_user }}"
+    password: "{{ db_password }}"
+    host: "%"
+    priv: "{{ db_name }}.*:ALL"
+    state: present
+    login_unix_socket: "{{ mysql_login_unix_socket }}"
+  no_log: true
+
+- name: "DB | localhost access"
+  mysql_user:
+    name: "{{ db_user }}"
+    password: "{{ db_password }}"
+    host: "localhost"
+    priv: "{{ db_name }}.*:ALL"
+    state: present
+    login_unix_socket: "{{ mysql_login_unix_socket }}"
+  no_log: true
+
+- name: "DB | FLUSH PRIVILEGES"
+  mysql_query:
+    login_unix_socket: "{{ mysql_login_unix_socket }}"
+    query: "FLUSH PRIVILEGES"
+
+# Canonical file on deploy target (always this path for mysql import)
+- name: "DB | set restore path fact"
+  set_fact:
+    db_restore_target: "/tmp/{{ app_name }}_restore.sql"
+
+# Controller: user-provided dump file (ThinkPad path)
+- name: "DB | Stat sql_dump_path on controller (local file)"
+  stat:
+    path: "{{ sql_dump_path }}"
+  delegate_to: localhost
+  become: false
+  register: dump_stat_controller
+  when:
+    - sql_dump_path is defined
+    - sql_dump_path != "none"
+    - sql_dump_path != "auto"
+
+# Target: file already placed (e.g. by 00_db_dump.yml copy step)
+- name: "DB | Stat restore file on target"
+  stat:
+    path: "{{ db_restore_target }}"
+  register: dump_stat_target
+
+- name: "DB | Copy SQL from controller → target (when local file exists)"
+  copy:
+    src: "{{ sql_dump_path }}"
+    dest: "{{ db_restore_target }}"
+    mode: "0644"
+  when:
+    - sql_dump_path is defined
+    - sql_dump_path not in ['none', 'auto']
+    - dump_stat_controller is defined
+    - dump_stat_controller.stat.exists | default(false)
+
+- name: "DB | Re-stat restore file on target after copy"
+  stat:
+    path: "{{ db_restore_target }}"
+  register: dump_stat_target_after
+
+- name: "DB | Import SQL (replace — full dump)"
+  shell: |
+    set -euo pipefail
+    mysql --socket="{{ mysql_login_unix_socket }}" -u root "{{ db_name }}" < "{{ db_restore_target }}"
+  when:
+    - dump_stat_target_after.stat.exists | default(false)
+    - not (sql_import_merge_mode | bool)
+
+# Merge pipeline: strip DROP*, rewrite INSERT INTO → INSERT IGNORE INTO (duplicate rows), then mysql.
+# Does not match INSERT IGNORE INTO lines (pattern requires INSERT then whitespace then INTO only).
+- name: "DB | Import SQL (merge — strip DROP; INSERT INTO → INSERT IGNORE INTO)"
+  shell: |
+    set -euo pipefail
+    sed -E \
+      -e '/^DROP TABLE/d' \
+      -e '/^DROP DATABASE/d' \
+      -e '/^DROP VIEW/d' \
+      -e '/^DROP PROCEDURE/d' \
+      -e '/^DROP FUNCTION/d' \
+      -e '/^DROP TRIGGER/d' \
+      -e 's/^INSERT[[:space:]]+INTO/INSERT IGNORE INTO/' \
+      "{{ db_restore_target }}" | \
+      mysql --socket="{{ mysql_login_unix_socket }}" -u root "{{ db_name }}"
+  when:
+    - dump_stat_target_after.stat.exists | default(false)
+    - sql_import_merge_mode | bool
+
+- name: "DB | Mark SQL import completed (for migrate ordering / conditionals)"
+  set_fact:
+    sql_import_completed: true
+  when: dump_stat_target_after.stat.exists | default(false)
+
+- name: "DB | Temp SQL file clean"
+  file:
+    path: "{{ db_restore_target }}"
+    state: absent
+  when:
+    - dump_stat_target_after.stat.exists | default(false)
+    - sql_cleanup_after_import | bool
+
+- name: "DB | Summary"
+  debug:
+    msg:
+      - "Database : {{ db_name }} ensured"
+      - "DB User  : {{ db_user }} ensured"
+      - "Import   : {{ 'Done (' ~ ( 'merge' if sql_import_merge_mode | bool else 'replace' ) ~ ')' if (dump_stat_target_after.stat.exists | default(false)) else 'Skipped (no dump file on target at ' ~ db_restore_target ~ ')' }}"
+      - "sql_dump_path (controller): {{ sql_dump_path }}"

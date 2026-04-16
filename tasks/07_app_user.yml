@@ -1,0 +1,72 @@
+---
+# Task 07: App-specific Linux user create karo
+# CRITICAL: Home dir aur deploy_path ownership confirm karo
+#           PHP/Composer/Artisan commands se PEHLE
+
+- name: "AppUser | '{{ app_name }}' user create (passwordless)"
+  user:
+    name: "{{ app_name }}"
+    shell: /bin/bash
+    create_home: yes
+    home: "{{ app_home }}"
+    password: "!"
+    groups:
+      - www-data
+    append: yes
+    state: present
+
+- name: "AppUser | Home directory ownership"
+  file:
+    path: "{{ app_home }}"
+    state: directory
+    owner: "{{ app_name }}"
+    group: "{{ app_name }}"
+    mode: "0755"
+
+- name: "AppUser | .ssh directory"
+  file:
+    path: "{{ app_home }}/.ssh"
+    state: directory
+    owner: "{{ app_name }}"
+    group: "{{ app_name }}"
+    mode: "0700"
+
+- name: "AppUser | Composer cache directory"
+  file:
+    path: "{{ app_home }}/.composer"
+    state: directory
+    owner: "{{ app_name }}"
+    group: "{{ app_name }}"
+    mode: "0755"
+
+- name: "AppUser | npm cache directory"
+  file:
+    path: "{{ app_home }}/.npm"
+    state: directory
+    owner: "{{ app_name }}"
+    group: "{{ app_name }}"
+    mode: "0755"
+
+- name: "AppUser | Deploy path create"
+  file:
+    path: "{{ deploy_path }}"
+    state: directory
+    owner: "{{ app_name }}"
+    group: www-data
+    mode: "0775"
+
+- name: "AppUser | Log directory"
+  file:
+    path: "{{ app_log_dir }}"
+    state: directory
+    owner: "{{ app_name }}"
+    group: www-data
+    mode: "0775"
+
+- name: "AppUser | Summary"
+  debug:
+    msg:
+      - "Linux User  : {{ app_name }}"
+      - "Home        : {{ app_home }} → owner: {{ app_name }}"
+      - "Deploy Path : {{ deploy_path }} → owner: {{ app_name }}:www-data"
+      - "Password    : NONE (locked - passwordless)"

@@ -1,0 +1,104 @@
+---
+# Task 02: Nginx install aur global config
+# Runs: Fresh Recovery only
+
+- name: "Nginx | nginx-full install"
+  apt:
+    name: nginx-full
+    state: present
+    update_cache: yes
+
+- name: "Nginx | Original config backup"
+  copy:
+    src: /etc/nginx/nginx.conf
+    dest: "/etc/nginx/nginx.conf.bak_{{ ansible_date_time.date }}"
+    remote_src: yes
+    force: no
+
+- name: "Nginx | Optimized global nginx.conf deploy"
+  copy:
+    dest: /etc/nginx/nginx.conf
+    mode: "0644"
+    content: |
+      user www-data;
+      worker_processes auto;
+      pid /run/nginx.pid;
+      error_log /var/log/nginx/error.log warn;
+      include /etc/nginx/modules-enabled/*.conf;
+      worker_rlimit_nofile 65536;
+
+      events {
+          worker_connections 20000;
+          multi_accept on;
+          use epoll;
+      }
+
+      http {
+          sendfile            on;
+          tcp_nodelay         on;
+          keepalive_timeout   65;
+          types_hash_max_size 2048;
+          server_tokens       off;
+          send_timeout        300s;
+          client_header_timeout 300s;
+          client_body_timeout   300s;
+          client_max_body_size  100m;
+          server_names_hash_max_size    65536;
+          server_names_hash_bucket_size 1024;
+
+          include      /etc/nginx/mime.types;
+          default_type application/octet-stream;
+
+          ssl_protocols TLSv1.2 TLSv1.3;
+          ssl_prefer_server_ciphers on;
+          ssl_session_cache shared:SSL:10m;
+          ssl_session_timeout 10m;
+
+          gzip on;
+          gzip_disable "msie6";
+          gzip_vary on;
+          gzip_proxied any;
+          gzip_comp_level 6;
+          gzip_buffers 16 8k;
+          gzip_http_version 1.1;
+          gzip_types text/css text/javascript text/plain application/json
+                     application/javascript application/xml image/svg+xml;
+
+          log_format main '$remote_addr - $remote_user [$time_local] "$request" '
+                          '$status $body_bytes_sent "$host" '
+                          '"$http_user_agent" "$http_x_forwarded_for"';
+          access_log /var/log/nginx/access.log main;
+
+          # Cloudflare Real IP
+          set_real_ip_from 103.21.244.0/22;
+          set_real_ip_from 103.22.200.0/22;
+          set_real_ip_from 103.31.4.0/22;
+          set_real_ip_from 104.16.0.0/13;
+          set_real_ip_from 104.24.0.0/14;
+          set_real_ip_from 108.162.192.0/18;
+          set_real_ip_from 131.0.72.0/22;
+          set_real_ip_from 141.101.64.0/18;
+          set_real_ip_from 162.158.0.0/15;
+          set_real_ip_from 172.64.0.0/13;
+          set_real_ip_from 173.245.48.0/20;
+          set_real_ip_from 188.114.96.0/20;
+          set_real_ip_from 190.93.240.0/20;
+          set_real_ip_from 197.234.240.0/22;
+          set_real_ip_from 198.41.128.0/17;
+          real_ip_header CF-Connecting-IP;
+
+          include /etc/nginx/conf.d/*.conf;
+          include /etc/nginx/sites-enabled/*;
+      }
+
+- name: "Nginx | Enable aur start"
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: "Nginx | Default site remove"
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  notify: reload nginx

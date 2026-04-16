@@ -1,0 +1,83 @@
+---
+# Task 13b: Let's Encrypt SSL (domain ke liye only)
+# IP address par yeh task RUN NAHI hogi (master_deploy.yml mein when: is_domain)
+
+- name: "SSL | Certbot install"
+  apt:
+    name:
+      - certbot
+      - python3-certbot-nginx
+    state: present
+    update_cache: yes
+
+- name: "SSL | Certificate already exists?"
+  stat:
+    path: "{{ le_cert_path }}"
+  register: le_cert_stat
+
+- name: "SSL | Port 80 temp config (certbot challenge ke liye)"
+  copy:
+    dest: "{{ nginx_available }}"
+    content: |
+      server {
+          listen 80;
+          listen [::]:80;
+          server_name {{ app_domain }};
+          root /var/www/html;
+          location /.well-known/acme-challenge/ {
+              root /var/www/html;
+          }
+          location / {
+              return 200 'OK';
+              add_header Content-Type text/plain;
+          }
+      }
+    mode: "0644"
+  when: not le_cert_stat.stat.exists
+
+- name: "SSL | sites-enabled symlink"
+  file:
+    src: "{{ nginx_available }}"
+    dest: "{{ nginx_enabled }}"
+    state: link
+    force: yes
+  when: not le_cert_stat.stat.exists
+
+- name: "SSL | Nginx reload (challenge ready)"
+  service:
+    name: nginx
+    state: reloaded
+  when: not le_cert_stat.stat.exists
+
+- name: "SSL | Certbot certificate get"
+  command: >
+    certbot certonly --nginx
+    -d {{ app_domain }}
+    --non-interactive
+    --agree-tos
+    --email webmaster@{{ app_domain }}
+  when: not le_cert_stat.stat.exists
+  register: certbot_result
+  ignore_errors: yes
+
+- name: "SSL | Certbot result"
+  debug:
+    msg: "{{ certbot_result.stdout_lines | default(['Certificate already exists or skipped']) }}"
+
+- name: "SSL | Certificate verify"
+  stat:
+    path: "{{ le_cert_path }}"
+  register: le_final_check
+
+- name: "SSL | Certificate status display"
+  debug:
+    msg: "{{ 'Certificate ready: ' + le_cert_path if le_final_check.stat.exists else 'WARNING: Certificate nahi mila - check DNS aur domain settings' }}"
+
+- name: "SSL | Auto-renewal cron"
+  cron:
+    name: "Certbot renew {{ app_name }}"
+    minute: "0"
+    hour: "3"
+    day: "*/15"
+    job: "certbot renew --quiet --nginx"
+    state: present

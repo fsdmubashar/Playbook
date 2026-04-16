@@ -1,0 +1,111 @@
+# ==============================================================================
+# Nginx Vhost - {{ app_name }}
+# Domain/IP : {{ app_domain }}
+# Stack     : {{ stack_type }}
+# Mode      : Port 80 only (no SSL/443)
+# ==============================================================================
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ app_domain }};
+
+{% if stack_type == "php" %}
+    root  {{ deploy_path }}/public;
+    index index.php index.html index.htm;
+{% endif %}
+
+    access_log /var/log/nginx/{{ app_name }}_access.log main;
+    error_log  /var/log/nginx/{{ app_name }}_error.log warn;
+
+    client_max_body_size 100m;
+
+    location ~ /\.(?!well-known) {
+        deny all;
+        access_log    off;
+        log_not_found off;
+    }
+    location ~* \.(jpg|jpeg|png|gif|ico|css|js|woff|woff2|ttf|svg|eot|webp|avif)$ {
+        expires    30d;
+        add_header Cache-Control "public, immutable";
+        access_log    off;
+        log_not_found off;
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+{% if stack_type == "php" %}
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # Admin protection block with PHP support
+    location ^~ /admin {
+        location ~ \.php$ {
+            include snippets/fastcgi-php.conf;
+            fastcgi_pass  unix:{{ php_fpm_socket }};
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include       fastcgi_params;
+        }
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass  unix:{{ php_fpm_socket }};
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include       fastcgi_params;
+        fastcgi_read_timeout      300;
+        fastcgi_send_timeout      300;
+        fastcgi_connect_timeout    60;
+        fastcgi_buffer_size       128k;
+        fastcgi_buffers           4 256k;
+        fastcgi_busy_buffers_size 256k;
+    }
+
+    location /storage {
+        alias {{ deploy_path }}/storage/app/public;
+        try_files $uri $uri/ =404;
+    }
+
+{% elif stack_type == "python" %}
+    location / {
+        proxy_pass         http://127.0.0.1:{{ gunicorn_port }};
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        "upgrade";
+        proxy_connect_timeout 60s;
+        proxy_send_timeout    300s;
+        proxy_read_timeout    300s;
+    }
+    location /static/ { alias {{ deploy_path }}/staticfiles/; expires 30d; }
+    location /media/  { alias {{ deploy_path }}/media/; expires 7d; }
+
+{% elif stack_type == "nodejs" %}
+    location / {
+        proxy_pass         http://127.0.0.1:{{ node_port }};
+        proxy_http_version 1.1;
+        proxy_set_header   Upgrade           $http_upgrade;
+        proxy_set_header   Connection        "upgrade";
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout    300s;
+        proxy_read_timeout    300s;
+    }
+    location /_next/static/ {
+        alias {{ deploy_path }}/.next/static/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        access_log off;
+    }
+
+{% endif %}
+}

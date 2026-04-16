@@ -1,0 +1,37 @@
+# ==============================================================================
+# Gunicorn Systemd Service - {{ app_name }}
+# ==============================================================================
+
+[Unit]
+Description=Gunicorn for {{ app_name }} ({{ app_domain }})
+After=network.target
+
+[Service]
+Type=notify
+User={{ app_name }}
+Group=www-data
+WorkingDirectory={{ deploy_path }}
+
+ExecStart={{ app_venv }}/bin/gunicorn \
+    --workers {{ [ansible_processor_vcpus * 2 + 1, 4] | max }} \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 127.0.0.1:{{ gunicorn_port }} \
+    --timeout 120 \
+    --keep-alive 5 \
+    --max-requests 1000 \
+    --log-level warning \
+    --access-logfile /var/log/apps/{{ app_name }}/gunicorn_access.log \
+    --error-logfile  /var/log/apps/{{ app_name }}/gunicorn_error.log \
+    app.main:app
+
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+Environment="APP_ENV=production"
+Environment="HOME=/home/{{ app_name }}"
+EnvironmentFile={{ deploy_path }}/.env
+
+[Install]
+WantedBy=multi-user.target

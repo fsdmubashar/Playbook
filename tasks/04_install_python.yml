@@ -1,0 +1,25 @@
+---
+# Task 04: Python install
+# Runs: Fresh Recovery + stack_type == python
+
+- name: "Python | Install python{{ python_version }} and tools"
+  apt:
+    name:
+      - "python{{ python_version }}"
+      - "python{{ python_version }}-dev"
+      - "python{{ python_version }}-venv"
+      - python3-pip
+      - python3-wheel
+      - build-essential
+      - libssl-dev
+      - libffi-dev
+    state: present
+    update_cache: yes
+
+- name: "Python | Gunicorn aur Uvicorn install"
+  pip:
+    name:
+      - gunicorn
+      - uvicorn
+    state: present
+    executable: "pip{{ python_version }}"

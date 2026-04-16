@@ -1,0 +1,87 @@
+---
+# Task 15: Final verification aur deployment summary
+
+- name: "Verify | Nginx config test"
+  command: nginx -t
+  register: nginx_final
+  changed_when: false
+  failed_when: nginx_final.rc != 0
+
+- name: "Verify | PHP-FPM config test"
+  command: "php-fpm{{ php_version }} -t"
+  register: fpm_final
+  changed_when: false
+  failed_when: fpm_final.rc != 0
+  when: stack_type == "php"
+
+- name: "Verify | Nginx reload"
+  service:
+    name: nginx
+    state: reloaded
+
+- name: "Verify | PHP-FPM restart"
+  service:
+    name: "php{{ php_version }}-fpm"
+    state: restarted
+  when: stack_type == "php"
+
+- name: "Verify | MariaDB running"
+  service:
+    name: mariadb
+    state: started
+  ignore_errors: yes
+
+- name: "Verify | Redis running"
+  service:
+    name: redis-server
+    state: started
+  ignore_errors: yes
+
+- name: "Verify | PHP-FPM socket check"
+  wait_for:
+    path: "{{ php_fpm_socket }}"
+    timeout: 10
+  when: stack_type == "php"
+  ignore_errors: yes
+
+- name: "Verify | Gunicorn port check"
+  wait_for:
+    port: "{{ gunicorn_port | int }}"
+    timeout: 10
+  when: stack_type == "python"
+  ignore_errors: yes
+
+- name: "Verify | Node.js port check"
+  wait_for:
+    port: "{{ node_port | int }}"
+    timeout: 10
+  when: stack_type == "nodejs"
+  ignore_errors: yes
+
+- name: "Verify | Nginx port 80 check"
+  wait_for:
+    port: 80
+    timeout: 10
+  ignore_errors: yes
+
+- name: "DEPLOYMENT COMPLETE"
+  debug:
+    msg:
+      - "╔═══════════════════════════════════════════════════════╗"
+      - "║         APPLICATION DEPLOYMENT COMPLETE               ║"
+      - "╠═══════════════════════════════════════════════════════╣"
+      - "  App Name   : {{ app_name }}"
+      - "  Domain     : {{ app_domain }}"
+      - "  SSL        : {{ ssl_label }}"
+      - "  Path       : {{ deploy_path }}"
+      - "  Stack      : {{ stack_type | upper }}"
+      - "  DB         : {{ db_name }} / {{ db_user }}"
+      - "  Linux User : {{ app_name }} (passwordless)"
+      - "  Mode       : {{ 'FRESH RECOVERY' if deploy_mode == '1' else 'RE-CONFIGURE' }}"
+      - "╠═══════════════════════════════════════════════════════╣"
+      - "  Nginx      : {{ nginx_available }}"
+      - "  FPM Pool   : {{ php_pool_conf if stack_type == 'php' else 'N/A' }}"
+      - "  FPM Socket : {{ php_fpm_socket if stack_type == 'php' else 'N/A' }}"
+      - "  Gunicorn   : {{ gunicorn_port if stack_type == 'python' else 'N/A' }}"
+      - "  Node Port  : {{ node_port if stack_type == 'nodejs' else 'N/A' }}"
+      - "╚═══════════════════════════════════════════════════════╝"

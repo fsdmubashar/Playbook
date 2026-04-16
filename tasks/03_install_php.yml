@@ -1,0 +1,71 @@
+---
+# Task 03: PHP-FPM install
+# Runs: Fresh Recovery + stack_type == php
+
+- name: "PHP | Ondrej PPA add karo"
+  apt_repository:
+    repo: "ppa:ondrej/php"
+    state: present
+    update_cache: yes
+
+- name: "PHP | php{{ php_version }}-fpm install"
+  apt:
+    name: "php{{ php_version }}-fpm"
+    state: present
+    update_cache: yes
+
+- name: "PHP | Extensions install"
+  apt:
+    name:
+      - "php{{ php_version }}-common"
+      - "php{{ php_version }}-mysql"
+      - "php{{ php_version }}-xml"
+      - "php{{ php_version }}-xmlrpc"
+      - "php{{ php_version }}-curl"
+      - "php{{ php_version }}-gd"
+      - "php{{ php_version }}-cli"
+      - "php{{ php_version }}-dev"
+      - "php{{ php_version }}-imap"
+      - "php{{ php_version }}-mbstring"
+      - "php{{ php_version }}-opcache"
+      - "php{{ php_version }}-soap"
+      - "php{{ php_version }}-zip"
+      - "php{{ php_version }}-redis"
+      - "php{{ php_version }}-intl"
+      - "php{{ php_version }}-bcmath"
+      - "imagemagick"
+      - "php-imagick"
+    state: present
+
+- name: "PHP | Default version set karo"
+  alternatives:
+    name: "{{ item.name }}"
+    path: "{{ item.path }}"
+  loop:
+    - { name: "php",        path: "/usr/bin/php{{ php_version }}" }
+    - { name: "phar",       path: "/usr/bin/phar{{ php_version }}" }
+    - { name: "phar.phar",  path: "/usr/bin/phar.phar{{ php_version }}" }
+    - { name: "phpize",     path: "/usr/bin/phpize{{ php_version }}" }
+    - { name: "php-config", path: "/usr/bin/php-config{{ php_version }}" }
+  ignore_errors: yes
+
+- name: "PHP | Composer install (globally)"
+  shell: |
+    curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+  args:
+    creates: /usr/local/bin/composer
+
+- name: "PHP | php{{ php_version }}-fpm enable aur start"
+  service:
+    name: "php{{ php_version }}-fpm"
+    state: started
+    enabled: yes
+
+- name: "PHP | Version verify"
+  command: "php{{ php_version }} -v"
+  register: php_ver
+  changed_when: false
+
+- name: "PHP | Version display"
+  debug:
+    msg: "{{ php_ver.stdout_lines[0] }}"

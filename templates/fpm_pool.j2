@@ -1,0 +1,50 @@
+; ==============================================================================
+; PHP-FPM Per-App Pool - {{ app_name }}
+; Socket : {{ php_fpm_socket }}
+; User   : {{ app_name }} (dedicated app user)
+; ==============================================================================
+
+[{{ app_name }}]
+
+; App-specific user (www-data nahi)
+user  = {{ app_name }}
+group = www-data
+
+; Unix socket (TCP se fast, aur per-app isolated)
+listen = {{ php_fpm_socket }}
+
+listen.owner = {{ app_name }}
+listen.group = www-data
+listen.mode  = 0660
+
+; Process manager
+pm                   = dynamic
+pm.max_children      = {{ php_pm_max_children }}
+pm.start_servers     = {{ php_pm_start_servers }}
+pm.min_spare_servers = {{ php_pm_min_spare }}
+pm.max_spare_servers = {{ php_pm_max_spare }}
+pm.max_requests      = 500
+
+; Resource limits
+rlimit_files = 65536
+rlimit_core  = 0
+
+; Environment
+env[PATH]    = /usr/local/bin:/usr/bin:/bin
+env[TMP]     = /tmp
+env[TMPDIR]  = /tmp
+env[TEMP]    = /tmp
+env[HOME]    = /home/{{ app_name }}
+env[APP_ENV] = production
+
+; Per-app logging
+access.log = /var/log/apps/{{ app_name }}/fpm_access.log
+slowlog    = /var/log/apps/{{ app_name }}/fpm_slow.log
+request_slowlog_timeout = 5s
+
+; Status endpoint (monitoring ke liye)
+pm.status_path = /fpm-status
+ping.path      = /fpm-ping
+ping.response  = pong
+
+chdir = {{ deploy_path }}

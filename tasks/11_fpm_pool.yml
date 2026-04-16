@@ -1,0 +1,59 @@
+---
+# Task 11: PHP-FPM per-app pool configure
+# Per-app socket = service isolation
+
+- name: "FPM | php{{ php_version }}-fpm running"
+  service:
+    name: "php{{ php_version }}-fpm"
+    state: started
+    enabled: yes
+
+- name: "FPM | Default www pool backup"
+  copy:
+    src: "/etc/php/{{ php_version }}/fpm/pool.d/www.conf"
+    dest: "/etc/php/{{ php_version }}/fpm/pool.d/www.conf.bak_{{ ansible_date_time.date }}"
+    remote_src: yes
+    force: no
+  when: deploy_mode == "1"
+  ignore_errors: yes
+
+- name: "FPM | Default www pool disable"
+  shell: |
+    if [ -f /etc/php/{{ php_version }}/fpm/pool.d/www.conf ]; then
+      mv /etc/php/{{ php_version }}/fpm/pool.d/www.conf \
+         /etc/php/{{ php_version }}/fpm/pool.d/www.conf.disabled
+    fi
+  when: deploy_mode == "1"
+  ignore_errors: yes
+
+- name: "FPM | Per-app pool deploy (Jinja2 template)"
+  template:
+    src: templates/fpm_pool.j2
+    dest: "{{ php_pool_conf }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart php-fpm
+
+- name: "FPM | Config test"
+  command: "php-fpm{{ php_version }} -t"
+  register: fpm_test
+  changed_when: false
+  failed_when: fpm_test.rc != 0
+
+- name: "FPM | Restart"
+  service:
+    name: "php{{ php_version }}-fpm"
+    state: restarted
+
+- name: "FPM | Socket check"
+  wait_for:
+    path: "{{ php_fpm_socket }}"
+    timeout: 15
+
+- name: "FPM | Pool configured"
+  debug:
+    msg:
+      - "Pool File : {{ php_pool_conf }}"
+      - "Socket    : {{ php_fpm_socket }}"
+      - "User      : {{ app_name }}"

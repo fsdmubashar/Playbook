@@ -1,0 +1,37 @@
+---
+# Task 13: Nginx per-app vhost configure
+
+- name: "Nginx | Per-app vhost create (Jinja2 template)"
+  template:
+    src: templates/nginx.j2
+    dest: "{{ nginx_available }}"
+    mode: "0644"
+
+- name: "Nginx | sites-enabled symlink"
+  file:
+    src: "{{ nginx_available }}"
+    dest: "{{ nginx_enabled }}"
+    state: link
+    force: yes
+
+- name: "Nginx | Config test"
+  command: nginx -t
+  register: nginx_test
+  changed_when: false
+  failed_when: nginx_test.rc != 0
+
+- name: "Nginx | Test result"
+  debug:
+    msg: "{{ nginx_test.stderr_lines }}"
+
+- name: "Nginx | Reload"
+  service:
+    name: nginx
+    state: reloaded
+
+- name: "Nginx | Configured"
+  debug:
+    msg:
+      - "Config  : {{ nginx_available }}"
+      - "Symlink : {{ nginx_enabled }}"
+      - "Mode    : Port 80 only (SSL disabled)"

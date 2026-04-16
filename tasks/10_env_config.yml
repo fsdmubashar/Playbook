@@ -1,0 +1,74 @@
+---
+# Task 10: .env configure
+# Fresh  → .env.example se copy + update
+# Reconfig → Existing .env update (lineinfile)
+
+- name: "Env | .env.example check"
+  stat:
+    path: "{{ deploy_path }}/.env.example"
+  register: env_example_stat
+  when: deploy_mode == "1"
+
+- name: "Env | [FRESH] .env.example se copy"
+  copy:
+    src: "{{ deploy_path }}/.env.example"
+    dest: "{{ deploy_path }}/.env"
+    owner: "{{ app_name }}"
+    group: www-data
+    mode: "0640"
+    remote_src: yes
+    force: no
+  when:
+    - deploy_mode == "1"
+    - env_example_stat.stat is defined
+    - env_example_stat.stat.exists
+
+- name: "Env | [FRESH] Blank .env create (agar .example nahi)"
+  file:
+    path: "{{ deploy_path }}/.env"
+    state: touch
+    owner: "{{ app_name }}"
+    group: www-data
+    mode: "0640"
+  when:
+    - deploy_mode == "1"
+    - env_example_stat.stat is defined
+    - not env_example_stat.stat.exists
+
+- name: "Env | Variables set/update"
+  lineinfile:
+    path: "{{ deploy_path }}/.env"
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    create: yes
+    owner: "{{ app_name }}"
+    group: www-data
+    mode: "0640"
+  loop:
+    - { key: "APP_NAME",        value: "{{ app_name }}" }
+    - { key: "APP_URL",         value: "https://{{ app_domain }}" }
+    - { key: "APP_ENV",         value: "production" }
+    - { key: "APP_DEBUG",       value: "false" }
+    - { key: "DB_CONNECTION",   value: "mysql" }
+    - { key: "DB_HOST",         value: "127.0.0.1" }
+    - { key: "DB_PORT",         value: "3306" }
+    - { key: "DB_DATABASE",     value: "{{ db_name }}" }
+    - { key: "DB_USERNAME",     value: "{{ db_user }}" }
+    - { key: "DB_PASSWORD",     value: "{{ db_password }}" }
+    - { key: "REDIS_HOST",      value: "{{ redis_host }}" }
+    - { key: "REDIS_PORT",      value: "{{ redis_port }}" }
+    - { key: "CACHE_DRIVER",    value: "redis" }
+    - { key: "SESSION_DRIVER",  value: "redis" }
+    - { key: "QUEUE_CONNECTION", value: "redis" }
+  no_log: true
+
+- name: "Env | Permissions confirm"
+  file:
+    path: "{{ deploy_path }}/.env"
+    owner: "{{ app_name }}"
+    group: www-data
+    mode: "0640"
+
+- name: "Env | Done"
+  debug:
+    msg: ".env configured at {{ deploy_path }}/.env"

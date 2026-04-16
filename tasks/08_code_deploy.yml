@@ -1,0 +1,83 @@
+---
+# Task 08: Code deploy
+# Git clone / rsync / git pull
+# RULE: app_name user se clone taake ownership sahi ho
+
+- name: "Code | [FRESH+GIT] Git clone"
+  git:
+    repo: "{{ git_url }}"
+    dest: "{{ deploy_path }}"
+    version: "{{ git_branch }}"
+    accept_hostkey: yes
+    force: yes
+  become_user: "{{ app_name }}"
+  environment:
+    HOME: "{{ app_home }}"
+  when:
+    - deploy_mode == "1"
+    - source_type == "git"
+    - git_url != "none"
+
+- name: "Code | [FRESH+RSYNC] rsync copy"
+  shell: |
+    rsync -avz --progress \
+      -e "ssh -o StrictHostKeyChecking=no" \
+      {{ rsync_source }}/ \
+      {{ deploy_path }}/
+  when:
+    - deploy_mode == "1"
+    - source_type == "rsync"
+    - rsync_source != "none"
+
+- name: "Code | [RECONFIG] .git check"
+  stat:
+    path: "{{ deploy_path }}/.git"
+  register: git_dir_check
+  when: deploy_mode == "2"
+
+- name: "Code | [RECONFIG] Git fetch + reset"
+  shell: |
+    cd {{ deploy_path }}
+    git fetch origin
+    git checkout {{ git_branch }}
+    git reset --hard origin/{{ git_branch }}
+  become_user: "{{ app_name }}"
+  environment:
+    HOME: "{{ app_home }}"
+  when:
+    - deploy_mode == "2"
+    - git_dir_check.stat is defined
+    - git_dir_check.stat.exists
+
+- name: "Code | Ownership set ({{ app_name }}:www-data)"
+  file:
+    path: "{{ deploy_path }}"
+    owner: "{{ app_name }}"
+    group: www-data
+    recurse: yes
+
+- name: "Code | Full app path permissions 775 (files + directories)"
+  command: "chmod -R 775 {{ deploy_path }}"
+
+- name: "Code | PHP storage aur bootstrap/cache writable"
+  file:
+    path: "{{ deploy_path }}/{{ item }}"
+    state: directory
+    owner: "{{ app_name }}"
+    group: www-data
+    mode: "0775"
+    recurse: yes
+  loop:
+    - "storage"
+    - "bootstrap/cache"
+  when: stack_type == "php"
+  ignore_errors: yes
+
+- name: "Code | PHP storage ownership fix (explicit)"
+  file:
+    path: "{{ deploy_path }}/storage"
+    owner: "{{ app_name }}"
+    group: www-data
+    recurse: yes
+  when: stack_type == "php"
+  ignore_errors: yes

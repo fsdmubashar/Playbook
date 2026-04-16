@@ -1,0 +1,51 @@
+---
+# Task 06b: Redis install aur configure
+# Runs: Fresh Recovery only
+
+- name: "Redis | Install"
+  apt:
+    name:
+      - redis-server
+      - redis-tools
+    state: present
+    update_cache: yes
+
+- name: "Redis | Bind localhost only"
+  lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: "^bind "
+    line: "bind 127.0.0.1 -::1"
+
+- name: "Redis | maxmemory set (RAM ka 20%)"
+  lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: "^#?\\s*maxmemory\\s"
+    line: "maxmemory {{ (ansible_memtotal_mb * 0.2) | int }}mb"
+
+- name: "Redis | maxmemory-policy set"
+  lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: "^#?\\s*maxmemory-policy"
+    line: "maxmemory-policy allkeys-lru"
+
+- name: "Redis | supervised systemd"
+  lineinfile:
+    path: /etc/redis/redis.conf
+    regexp: "^supervised "
+    line: "supervised systemd"
+
+- name: "Redis | Enable aur restart"
+  service:
+    name: redis-server
+    state: restarted
+    enabled: yes
+
+- name: "Redis | Connection test"
+  command: redis-cli ping
+  register: redis_ping
+  changed_when: false
+  failed_when: "'PONG' not in redis_ping.stdout"
+
+- name: "Redis | Status"
+  debug:
+    msg: "Redis: {{ redis_ping.stdout }} (127.0.0.1:6379)"

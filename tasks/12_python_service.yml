@@ -1,0 +1,26 @@
+---
+# Task 12: Python Gunicorn systemd service
+
+- name: "Python | Virtualenv create"
+  command: "python{{ python_version }} -m venv {{ app_venv }}"
+  args:
+    creates: "{{ app_venv }}/bin/activate"
+  become_user: "{{ app_name }}"
+  environment:
+    HOME: "{{ app_home }}"
+
+- name: "Python | Gunicorn systemd service deploy"
+  template:
+    src: templates/gunicorn.service.j2
+    dest: "/etc/systemd/system/{{ app_name }}-gunicorn.service"
+    mode: "0644"
+
+- name: "Python | systemd daemon reload"
+  systemd:
+    daemon_reload: yes
+
+- name: "Python | Gunicorn enable aur start"
+  systemd:
+    name: "{{ app_name }}-gunicorn"
+    state: started
+    enabled: yes

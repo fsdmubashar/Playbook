@@ -1,0 +1,26 @@
+---
+# =============================================================================
+# Global Default Variables
+# master_deploy.yml ki vars section inhe override karti hai runtime par
+# =============================================================================
+
+default_php_version:    "8.2"
+default_python_version: "3.11"
+default_redis_host:     "127.0.0.1"
+default_redis_port:     "6379"
+nginx_user:             "www-data"
+
+# MariaDB / import (override via -e or host_vars)
+mysql_login_unix_socket: "/var/run/mysqld/mysqld.sock"
+# true = merge import (strip leading DROP lines; prefer dumps from mysqldump --no-create-info)
+sql_import_merge_mode: false
+# When taking dump from old server (00_db_dump.yml), add --no-create-info if merge mode
+sql_dump_merge_mode: false
+# Remove /tmp/{{ app_name }}_restore.sql on target after successful import
+sql_cleanup_after_import: true
+
+# Optional: pre-fetch dump from another server (see tasks/prefetch_remote_sql.yml)
+remote_sql_source_host: ""
+remote_sql_source_user: "root"
+remote_sql_source_path: ""
+remote_sql_source_key: "~/.ssh/id_rsa"

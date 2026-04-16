@@ -1,0 +1,70 @@
+---
+# Task 01: System preparation
+# Runs: Fresh Recovery only
+
+- name: "System | apt update aur upgrade"
+  apt:
+    update_cache: yes
+    upgrade: dist
+    cache_valid_time: 3600
+
+- name: "System | Common packages install"
+  apt:
+    name:
+      - curl
+      - wget
+      - git
+      - unzip
+      - zip
+      - rsync
+      - software-properties-common
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - htop
+      - net-tools
+      - acl
+      - python3-pip
+      - python3-mysqldb
+      - python3-pymysql
+    state: present
+
+- name: "System | File limits badhao"
+  blockinfile:
+    path: /etc/security/limits.conf
+    marker: "# {mark} ANSIBLE MANAGED"
+    block: |
+      www-data  soft  nofile  65536
+      www-data  hard  nofile  65536
+      *         soft  nofile  65536
+      *         hard  nofile  65536
+
+- name: "System | Kernel parameters optimize"
+  sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_set: yes
+    state: present
+    reload: yes
+  loop:
+    - { key: "net.core.somaxconn",           value: "65535" }
+    - { key: "net.ipv4.tcp_max_syn_backlog",  value: "65535" }
+    - { key: "net.ipv4.ip_local_port_range",  value: "1024 65535" }
+    - { key: "vm.swappiness",                 value: "10" }
+    - { key: "fs.file-max",                   value: "2097152" }
+
+- name: "System | SSL directories"
+  file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - /etc/ssl/certs
+    - /etc/ssl/private
+
+- name: "System | Deploy base directory"
+  file:
+    path: "{{ deploy_path | dirname }}"
+    state: directory
+    mode: "0755"
