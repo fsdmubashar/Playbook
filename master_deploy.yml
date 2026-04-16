@@ -1,15 +1,15 @@
 ---
 # =============================================================================
-# UNIVERSAL APPLICATION DEPLOYMENT & DISASTER RECOVERY TOOL
-# Version : 4.0 (Final - Production Ready)
+# PHP/LARAVEL APPLICATION DEPLOYMENT & RECOVERY TOOL
+# Version : 5.0 (PHP Only)
 # Run From: LOCAL THINKPAD only - NEVER from target server
-# Usage   : ansible-playbook -i inventory.ini master_deploy.yml --limit <IP>
+# Usage   : ansible-playbook -i inventory.ini master_deploy.yml --limit <IP> --step
 # =============================================================================
 
-- name: "Universal App Deployment & Disaster Recovery"
+- name: "PHP/Laravel App Deployment"
   hosts: all
   become: yes
-  gather_facts: yes
+  gather_facts: no
 
   # ============================================================
   # VARS_PROMPT
@@ -21,7 +21,7 @@
       prompt: |
 
         ╔══════════════════════════════════════════╗
-        ║   UNIVERSAL DEPLOYMENT TOOL v4.0         ║
+        ║   PHP DEPLOYMENT TOOL v5.0               ║
         ╚══════════════════════════════════════════╝
         Target Server:
           [localhost] - Is hi server par chal raha hai
@@ -45,7 +45,7 @@
 
         App Name (lowercase, underscore format)
         Yahi Linux user banta hai
-        Example: allmath_com  OR  laraval_app
+        Example: laravel_app
         App Name
       private: no
 
@@ -53,13 +53,14 @@
       prompt: |
 
         App Domain ya IP Address:
-          Domain → laraval.muazahmad.online  (SSL lagega)
-          IP     → 64.227.161.61              (SSL nahi lagega)
+          Domain → laravel.example.com  (SSL lagega)
+          IP     → 64.227.161.61        (SSL nahi lagega)
         Value
       private: no
 
     - name: ssl_choice
       prompt: |
+
         SSL/HTTPS add karna hai?
           [no]  - Port 80 only (no 443)
           [yes] - LetsEncrypt SSL (sirf domain ho to)
@@ -68,30 +69,14 @@
       default: "no"
 
     - name: deploy_path
-      prompt: "Deployment Path (e.g., /var/www/html/laraval.app)"
+      prompt: "Deployment Path (e.g., /var/www/html/laravel_app)"
       private: no
       default: "/var/www/html/myapp"
 
-    - name: stack_type
-      prompt: |
-
-        Application Stack:
-          [php]    - Laravel / Core PHP
-          [python] - Django / FastAPI
-          [nodejs] - Node.js / Express / Next.js
-        Stack
-      private: no
-      default: "php"
-
     - name: php_version
-      prompt: "PHP Version (PHP stack ke liye, default: 8.2)"
+      prompt: "PHP Version (default: 8.2)"
       private: no
       default: "8.2"
-
-    - name: python_version
-      prompt: "Python Version (Python stack ke liye, default: 3.11)"
-      private: no
-      default: "3.11"
 
     - name: source_type
       prompt: |
@@ -104,7 +89,7 @@
       default: "git"
 
     - name: git_url
-      prompt: "Git Repository URL (e.g., https://github.com/org/repo.git)"
+      prompt: "Git Repository URL (e.g., git@bitbucket.org:org/repo.git)"
       private: no
       default: "none"
 
@@ -112,6 +97,11 @@
       prompt: "Git Branch (e.g., main / master / production)"
       private: no
       default: "main"
+      
+    - name: git_ssh_key
+      prompt: "SSH Key for Git (Bitbucket/GitHub private repos)"
+      private: no
+      default: "~/.ssh/id_rsa"
 
     - name: rsync_source
       prompt: "rsync Source (user@host:/path/to/app) - rsync mode ke liye"
@@ -130,66 +120,12 @@
       prompt: "Database Password (hidden)"
       private: yes
 
-    - name: sql_dump_path
-      prompt: "SQL Dump local path (Fresh Recovery) - none to skip, OR 'auto' agar DB server se lena hai"
-      private: no
-      default: "none"
-
-    - name: take_dump
+    - name: restore_db
       prompt: |
-
-        Purane server ki application DB ka dump lena hai?
+      
+        Purane server ki application DB ka dump (Golden Copy) restore karna hai?
           [no]  - Nahi (fresh deploy, koi import nahi)
-          [yes] - Purane server se sirf us application ki DB dump lo aur naye server par import karo
-        Choice
-      private: no
-      default: "no"
-
-    - name: dump_db_server_ip
-      prompt: |
-
-        PURANE SERVER ka IP (jahan application abhi chal rahi hai)
-        Yahan SSH kar ke sirf us application ki DB ka dump liya jayega
-        (take_dump=no ho to koi zaroorat nahi - none likhein)
-        IP
-      private: no
-      default: "none"
-
-    - name: dump_db_server_user
-      prompt: "Purane server ka SSH User (e.g., root)"
-      private: no
-      default: "root"
-
-    - name: dump_db_server_key
-      prompt: "Purane server ka SSH Key path (e.g., ~/.ssh/id_rsa)"
-      private: no
-      default: "~/.ssh/id_rsa"
-
-    - name: dump_db_name
-      prompt: |
-
-        Sirf KIS Database ka dump lena hai?
-        (Purane server par us application ki specific DB ka naam)
-        Example: laraval_db  ya  allmath_db
-        DB Name
-      private: no
-      default: "none"
-
-    - name: dump_db_user
-      prompt: "Purane server DB ka Username (us database ka)"
-      private: no
-      default: "root"
-
-    - name: dump_db_password
-      prompt: "Purane server DB ka Password (hidden)"
-      private: yes
-
-    - name: db_direct_access
-      prompt: |
-
-        Kya purana server naye deploy server ko directly reach kar sakta hai?
-          [yes] - Purana server → Naya server par direct rsync (same datacenter)
-          [no]  - Purana server → Local ThinkPad → Naya server (alag datacenters)
+          [yes] - Haan (backup server se DB fetch hogi aur import hogi)
         Choice
       private: no
       default: "no"
@@ -209,37 +145,20 @@
       private: no
       default: "50"
 
-    - name: gunicorn_port
-      prompt: "Gunicorn Port (Python only, default: 8000)"
-      private: no
-      default: "8000"
-
-    - name: node_port
-      prompt: "Node.js Port (Node only, default: 3000)"
-      private: no
-      default: "3000"
-
   # ============================================================
   # COMPUTED VARIABLES
-  # vars_prompt ke BAAD set hote hain - yahan safe hai
   # ============================================================
   vars:
-    # runtime prompt se SSL enable/disable decide hota hai
     enable_ssl: "{{ ssl_choice == 'yes' }}"
-    # Mode flags
     is_fresh:     "{{ deploy_mode == '1' }}"
     is_reconfig:  "{{ deploy_mode == '2' }}"
     is_git:       "{{ source_type == 'git' }}"
     is_rsync:     "{{ source_type == 'rsync' }}"
-    has_sql_dump: "{{ sql_dump_path != 'none' }}"
 
     # Domain vs IP auto-detect
-    # Regex: sirf digits aur dots = IP address = is_domain false
     is_domain: "{{ not (app_domain | regex_search('^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$')) }}"
 
     # SSL label
-    # - domain + ssl_choice=yes => LetsEncrypt
-    # - else => port 80 only
     ssl_label: "{{ 'LetsEncrypt-domain' if (is_domain | bool and enable_ssl | bool) else 'SSL disabled (port 80 only)' }}"
 
     # Let's Encrypt cert paths
@@ -256,16 +175,12 @@
 
     # App paths
     app_home:    "/home/{{ app_name }}"
-    app_venv:    "{{ deploy_path }}/.venv"
     app_log_dir: "/var/log/apps/{{ app_name }}"
 
     # PHP-FPM pool calculated values
     php_pm_start_servers: "{{ [(php_pm_max_children | int / 4) | int, 5] | max }}"
     php_pm_min_spare:     "{{ [(php_pm_max_children | int / 5) | int, 5] | max }}"
     php_pm_max_spare:     "{{ [(php_pm_max_children | int / 2) | int, 10] | max }}"
-
-  # mysql_login_unix_socket, sql_import_merge_mode, sql_cleanup_after_import:
-  # set in group_vars/all.yml (or -e)
 
   # ============================================================
   # HANDLERS
@@ -290,6 +205,13 @@
   # PRE-TASKS
   # ============================================================
   pre_tasks:
+    - name: "Gather minimal facts (memory, CPU only)"
+      setup:
+        gather_subset:
+          - hardware
+          - date_time
+      tags: [always]
+
     - name: "Deployment Summary"
       debug:
         msg:
@@ -299,7 +221,7 @@
           - " DOMAIN  : {{ app_domain }}"
           - " SSL     : {{ ssl_label }}"
           - " PATH    : {{ deploy_path }}"
-          - " STACK   : {{ stack_type | upper }}"
+          - " STACK   : PHP"
           - " SOURCE  : {{ source_type | upper }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -309,15 +231,14 @@
         state: directory
         mode: "0755"
 
-    - name: "[PRE] Fetch SQL dump from remote source (inventory)"
-      include_tasks: tasks/prefetch_remote_sql.yml
+    - name: "[PRE] Fetch Golden Copy DB dump from Backup Server"
+      include_tasks: tasks/prefetch_golden_copy.yml
       when:
         - deploy_mode == "1"
-        - remote_sql_source_host is defined
-        - (remote_sql_source_host | default('') | trim | length) > 0
-        - (remote_sql_source_path | default('') | trim | length) > 0
-        - (sql_dump_path | default('none')) in ['none', 'auto']
-        - (take_dump | default('no')) != 'yes'
+        - restore_db == "yes"
+        - backup_server_host is defined
+        - backup_server_host | length > 0
+      tags: [db-fetch]
 
   # ============================================================
   # MAIN TASKS FLOW
@@ -325,102 +246,70 @@
   tasks:
 
     # ── PHASE 1: FRESH - Stack Installation ──────────────────
-    - name: "[1/8] FRESH | System preparation"
+    - name: "[1/7] FRESH | System preparation"
       include_tasks: tasks/01_system_prep.yml
       when: deploy_mode == "1"
-      tags: [fresh, system]
+      tags: [fresh, system-prep]
 
-    - name: "[2/8] FRESH | Nginx install aur global config"
+    - name: "[2/7] FRESH | Nginx install aur global config"
       include_tasks: tasks/02_install_nginx.yml
       when: deploy_mode == "1"
-      tags: [fresh, nginx]
+      tags: [fresh, nginx-install]
 
-    - name: "[3/8] FRESH | PHP Stack install"
+    - name: "[3/7] FRESH | PHP Stack install"
       include_tasks: tasks/03_install_php.yml
-      when:
-        - deploy_mode == "1"
-        - stack_type == "php"
-      tags: [fresh, php]
+      when: deploy_mode == "1"
+      tags: [fresh, php-install]
 
-    - name: "[3/8] FRESH | Python Stack install"
-      include_tasks: tasks/04_install_python.yml
-      when:
-        - deploy_mode == "1"
-        - stack_type == "python"
-      tags: [fresh, python]
-
-    - name: "[3/8] FRESH | Node.js Stack install"
-      include_tasks: tasks/05_install_nodejs.yml
-      when:
-        - deploy_mode == "1"
-        - stack_type == "nodejs"
-      tags: [fresh, nodejs]
-
-    - name: "[4/8] FRESH | MariaDB install aur configure"
+    - name: "[4/7] FRESH | MariaDB install aur configure"
       include_tasks: tasks/06_install_mariadb.yml
       when: deploy_mode == "1"
-      tags: [fresh, database]
+      tags: [fresh, db-setup]
 
-    - name: "[4/8] FRESH | Redis install aur configure"
+    - name: "[4/7] FRESH | Redis install aur configure"
       include_tasks: tasks/06b_install_redis.yml
       when: deploy_mode == "1"
-      tags: [fresh, redis]
+      tags: [fresh, redis-install]
 
     # ── PHASE 2: App User, Code, DB, Env ─────────────────────
-    - name: "[5/8] ALL | App Linux user create karo"
+    - name: "[5/7] ALL | App Linux user create karo"
       include_tasks: tasks/07_app_user.yml
-      tags: [always, user]
+      tags: [always, app-user]
 
-    - name: "[5/8] ALL | Code deploy karo"
+    - name: "[5/7] ALL | Code deploy karo"
       include_tasks: tasks/08_code_deploy.yml
-      tags: [always, code]
+      tags: [always, code-deploy, git-pull]
 
-    - name: "[6/8] FRESH | DB Dump lao (agar requested)"
-      include_tasks: tasks/00_db_dump.yml
-      when:
-        - deploy_mode == "1"
-        - take_dump == "yes"
-        - dump_db_server_ip != "none"
-      tags: [fresh, dump]
-
-    # Order: (optional 00 dump) → 09 import → … → 14 includes "php artisan migrate --force" LAST among DB steps
-    - name: "[6/8] FRESH | Database create aur restore"
+    - name: "[5/7] FRESH | Database create aur restore"
       include_tasks: tasks/09_database_restore.yml
       when: deploy_mode == "1"
-      tags: [fresh, database]
+      tags: [fresh, db-restore]
 
-    - name: "[6/8] ALL | .env configure karo"
+    - name: "[6/7] ALL | .env configure karo"
       include_tasks: tasks/10_env_config.yml
-      tags: [always, config]
+      tags: [always, env-config]
 
     # ── PHASE 3: Services ─────────────────────────────────────
-    - name: "[7/8] PHP | FPM pool configure karo"
+    - name: "[6/7] PHP | FPM pool configure karo"
       include_tasks: tasks/11_fpm_pool.yml
-      when: stack_type == "php"
-      tags: [always, fpm]
+      tags: [always, fpm-pool]
 
-    - name: "[7/8] Python | Gunicorn service configure karo"
-      include_tasks: tasks/12_python_service.yml
-      when: stack_type == "python"
-      tags: [always, gunicorn]
-
-    - name: "[7/8] ALL | SSL - domain hai to LetsEncrypt"
+    - name: "[6/7] ALL | SSL - domain hai to LetsEncrypt"
       include_tasks: tasks/13b_ssl_certbot.yml
       when:
         - enable_ssl | bool
         - is_domain | bool
       tags: [always, ssl]
 
-    - name: "[7/8] ALL | Nginx vhost configure karo"
+    - name: "[6/7] ALL | Nginx vhost configure karo"
       include_tasks: tasks/13_nginx_config.yml
-      tags: [always, nginx]
+      tags: [always, nginx-config]
 
     # ── PHASE 4: App Commands aur Verify ──────────────────────
-    # Flow: 1) SQL import already ran in 09 → 2) here: php artisan migrate --force (Laravel) after .env
-    - name: "[8/8] ALL | App-specific commands chalao"
+    - name: "[7/7] ALL | App-specific commands chalao"
       include_tasks: tasks/14_app_commands.yml
-      tags: [always, commands]
+      tags: [always, app-commands, composer, artisan, migrate]
 
-    - name: "[8/8] ALL | Verify aur Reload services"
+    - name: "[7/7] ALL | Verify aur Reload services"
       include_tasks: tasks/15_verify_reload.yml
       tags: [always, verify]

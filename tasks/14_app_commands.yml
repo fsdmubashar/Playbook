@@ -11,10 +11,6 @@
 # 6. app_name user 07_app_user.yml mein sahi ownership le chuka hai
 # =============================================================================
 
-# ══════════════════════════════════════════════════════
-# PHP / LARAVEL
-# ══════════════════════════════════════════════════════
-
 - name: "PHP | composer install"
   command: >
     /usr/local/bin/composer install
@@ -28,26 +24,22 @@
     HOME: "{{ app_home }}"
     COMPOSER_HOME: "{{ app_home }}/.composer"
     COMPOSER_ALLOW_SUPERUSER: "0"
-  when: stack_type == "php"
   register: composer_out
   ignore_errors: yes
 
 - name: "PHP | composer result"
   debug:
     msg: "{{ (composer_out.stdout_lines | default([]))[-5:] }}"
-  when: stack_type == "php"
 
 - name: "PHP | .env.example exists?"
   stat:
     path: "{{ deploy_path }}/.env.example"
   register: env_example_stat
-  when: stack_type == "php"
 
 - name: "PHP | .env exists?"
   stat:
     path: "{{ deploy_path }}/.env"
   register: env_stat
-  when: stack_type == "php"
 
 - name: "PHP | .env create from .env.example (agar missing ho)"
   copy:
@@ -58,7 +50,6 @@
     group: www-data
     mode: "0664"
   when:
-    - stack_type == "php"
     - env_example_stat.stat.exists
     - not env_stat.stat.exists
 
@@ -70,7 +61,6 @@
   environment:
     HOME: "{{ app_home }}"
   when:
-    - stack_type == "php"
     - deploy_mode == "1"
     - env_stat.stat.exists or env_example_stat.stat.exists
   register: key_out
@@ -79,7 +69,6 @@
   debug:
     msg: "{{ key_out.stdout | default('key:generate skipped') }}"
   when:
-    - stack_type == "php"
     - deploy_mode == "1"
 
 # Required order: 1) Import dump (tasks/09_database_restore.yml) → 2) this task (after .env in 10).
@@ -90,15 +79,12 @@
   become_user: "{{ app_name }}"
   environment:
     HOME: "{{ app_home }}"
-  when:
-    - stack_type == "php"
   register: migrate_out
   ignore_errors: yes
 
 - name: "PHP | migrate result"
   debug:
     msg: "{{ migrate_out.stdout_lines | default(['migrate skipped']) }}"
-  when: stack_type == "php"
 
 - name: "PHP | artisan storage:link"
   command: /usr/bin/php artisan storage:link --force
@@ -107,7 +93,6 @@
   become_user: "{{ app_name }}"
   environment:
     HOME: "{{ app_home }}"
-  when: stack_type == "php"
   ignore_errors: yes
 
 - name: "PHP | Cache clear"
@@ -121,7 +106,6 @@
   become_user: "{{ app_name }}"
   environment:
     HOME: "{{ app_home }}"
-  when: stack_type == "php"
   ignore_errors: yes
 
 - name: "PHP | Cache optimize"
@@ -134,124 +118,4 @@
   become_user: "{{ app_name }}"
   environment:
     HOME: "{{ app_home }}"
-  when: stack_type == "php"
-  ignore_errors: yes
-
-# ══════════════════════════════════════════════════════
-# PYTHON / DJANGO / FASTAPI
-# ══════════════════════════════════════════════════════
-
-- name: "Python | pip install requirements"
-  pip:
-    requirements: "{{ deploy_path }}/requirements.txt"
-    virtualenv: "{{ app_venv }}"
-    state: present
-  become_user: "{{ app_name }}"
-  environment:
-    HOME: "{{ app_home }}"
-  when: stack_type == "python"
-  ignore_errors: yes
-
-- name: "Python | Django collectstatic"
-  command: "{{ app_venv }}/bin/python manage.py collectstatic --noinput"
-  args:
-    chdir: "{{ deploy_path }}"
-  become_user: "{{ app_name }}"
-  environment:
-    HOME: "{{ app_home }}"
-  when: stack_type == "python"
-  ignore_errors: yes
-
-- name: "Python | Django migrate"
-  command: "{{ app_venv }}/bin/python manage.py migrate --noinput"
-  args:
-    chdir: "{{ deploy_path }}"
-  become_user: "{{ app_name }}"
-  environment:
-    HOME: "{{ app_home }}"
-  when: stack_type == "python"
-  ignore_errors: yes
-
-- name: "Python | Gunicorn restart"
-  systemd:
-    name: "{{ app_name }}-gunicorn"
-    state: restarted
-  when: stack_type == "python"
-  ignore_errors: yes
-
-# ══════════════════════════════════════════════════════
-# NODE.JS
-# ══════════════════════════════════════════════════════
-
-- name: "NodeJS | npm install"
-  command: /usr/bin/npm install --omit=dev
-  args:
-    chdir: "{{ deploy_path }}"
-  become_user: "{{ app_name }}"
-  environment:
-    HOME: "{{ app_home }}"
-    npm_config_cache: "{{ app_home }}/.npm"
-  when: stack_type == "nodejs"
-
-- name: "NodeJS | npm build (agar script ho)"
-  shell: |
-    if /usr/bin/node -e "const p=require('./package.json'); process.exit(p.scripts&&p.scripts.build?0:1)" 2>/dev/null; then
-      /usr/bin/npm run build
-    else
-      echo "No build script - skip"
-    fi
-  args:
-    chdir: "{{ deploy_path }}"
-  become_user: "{{ app_name }}"
-  environment:
-    HOME: "{{ app_home }}"
-  when: stack_type == "nodejs"
-  ignore_errors: yes
-
-- name: "NodeJS | PM2 check"
-  shell: "pm2 list | grep {{ app_name }}"
-  register: pm2_check
-  changed_when: false
-  failed_when: false
-  become_user: "{{ app_name }}"
-  environment:
-    HOME: "{{ app_home }}"
-    PM2_HOME: "{{ app_home }}/.pm2"
-  when: stack_type == "nodejs"
-
-- name: "NodeJS | PM2 start (Fresh)"
-  shell: |
-    cd {{ deploy_path }}
-    if   [ -f ecosystem.config.js ]; then pm2 start ecosystem.config.js --env production --name {{ app_name }}
-    elif [ -f app.js    ]; then pm2 start app.js     --name {{ app_name }}
-    elif [ -f server.js ]; then pm2 start server.js  --name {{ app_name }}
-    elif [ -f index.js  ]; then pm2 start index.js   --name {{ app_name }}
-    else echo "ERROR: No entry point!"; exit 1
-    fi
-  become_user: "{{ app_name }}"
-  environment:
-    HOME: "{{ app_home }}"
-    PM2_HOME: "{{ app_home }}/.pm2"
-  when:
-    - stack_type == "nodejs"
-    - pm2_check.rc != 0
-
-- name: "NodeJS | PM2 reload (Reconfig)"
-  command: "pm2 reload {{ app_name }}"
-  become_user: "{{ app_name }}"
-  environment:
-    HOME: "{{ app_home }}"
-    PM2_HOME: "{{ app_home }}/.pm2"
-  when:
-    - stack_type == "nodejs"
-    - pm2_check.rc == 0
-  ignore_errors: yes
-
-- name: "NodeJS | PM2 save"
-  command: pm2 save
-  become_user: "{{ app_name }}"
-  environment:
-    HOME: "{{ app_home }}"
-    PM2_HOME: "{{ app_home }}/.pm2"
-  when: stack_type == "nodejs"
   ignore_errors: yes

@@ -1,0 +1,12 @@
+---
+# Task: Pre-fetch Golden Copy DB Dump
+# Only run when restore_db == 'yes'
+
+- name: "GoldenCopy | SCP dump from backup server → target /tmp/"
+  shell: |
+    scp -o StrictHostKeyChecking=no \
+      -i {{ backup_server_key_path }} \
+      {{ backup_server_user }}@{{ backup_server_host }}:{{ remote_backup_path }} \
+      /tmp/{{ app_name }}_restore.sql
+  delegate_to: "{{ inventory_hostname }}"
+  tags: [db-fetch]
