@@ -13,6 +13,9 @@ nginx_user:             "www-data"
 mysql_login_unix_socket: "/var/run/mysqld/mysqld.sock"
 sql_cleanup_after_import: true
 
+# ── Environment ──
+stack_type: "php"
+
 # ── Golden Copy Backup Server ──
 backup_server_host: ""          # IP/hostname of the backup server
 backup_server_user: "root"

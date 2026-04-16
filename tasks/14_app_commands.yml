@@ -11,6 +11,24 @@
 # 6. app_name user 07_app_user.yml mein sahi ownership le chuka hai
 # =============================================================================
 
+- name: "PHP | Ensure app_user ownership before commands"
+  file:
+    path: "{{ deploy_path }}"
+    owner: "{{ app_name }}"
+    group: www-data
+    recurse: yes
+  ignore_errors: yes
+
+- name: "PHP | Check if composer.json exists"
+  stat:
+    path: "{{ deploy_path }}/composer.json"
+  register: composer_json_stat
+
+- name: "PHP | Check if artisan exists"
+  stat:
+    path: "{{ deploy_path }}/artisan"
+  register: artisan_stat
+
 - name: "PHP | composer install"
   command: >
     /usr/local/bin/composer install
@@ -24,12 +42,19 @@
     HOME: "{{ app_home }}"
     COMPOSER_HOME: "{{ app_home }}/.composer"
     COMPOSER_ALLOW_SUPERUSER: "0"
+  when: composer_json_stat.stat.exists
   register: composer_out
   ignore_errors: yes
 
 - name: "PHP | composer result"
   debug:
     msg: "{{ (composer_out.stdout_lines | default([]))[-5:] }}"
+  when: composer_json_stat.stat.exists
+
+- name: "PHP | Skip message for Composer"
+  debug:
+    msg: "Warning: composer.json not found in {{ deploy_path }}. Skipping composer install."
+  when: not composer_json_stat.stat.exists
 
 - name: "PHP | .env.example exists?"
   stat:
@@ -63,6 +88,7 @@
   when:
     - deploy_mode == "1"
     - env_stat.stat.exists or env_example_stat.stat.exists
+    - artisan_stat.stat.exists
   register: key_out
 
 - name: "PHP | key:generate result"
@@ -70,6 +96,7 @@
     msg: "{{ key_out.stdout | default('key:generate skipped') }}"
   when:
     - deploy_mode == "1"
+    - artisan_stat.stat.exists
 
 # Required order: 1) Import dump (tasks/09_database_restore.yml) → 2) this task (after .env in 10).
 - name: "PHP | artisan migrate --force"
@@ -79,12 +106,14 @@
   become_user: "{{ app_name }}"
   environment:
     HOME: "{{ app_home }}"
+  when: artisan_stat.stat.exists
   register: migrate_out
   ignore_errors: yes
 
 - name: "PHP | migrate result"
   debug:
     msg: "{{ migrate_out.stdout_lines | default(['migrate skipped']) }}"
+  when: artisan_stat.stat.exists
 
 - name: "PHP | artisan storage:link"
   command: /usr/bin/php artisan storage:link --force
@@ -93,6 +122,7 @@
   become_user: "{{ app_name }}"
   environment:
     HOME: "{{ app_home }}"
+  when: artisan_stat.stat.exists
   ignore_errors: yes
 
 - name: "PHP | Cache clear"
@@ -106,6 +136,7 @@
   become_user: "{{ app_name }}"
   environment:
     HOME: "{{ app_home }}"
+  when: artisan_stat.stat.exists
   ignore_errors: yes
 
 - name: "PHP | Cache optimize"
@@ -118,4 +149,10 @@
   become_user: "{{ app_name }}"
   environment:
     HOME: "{{ app_home }}"
+  when: artisan_stat.stat.exists
   ignore_errors: yes
+
+- name: "PHP | Skip message for Artisan"
+  debug:
+    msg: "Warning: artisan not found in {{ deploy_path }}. Skipping all artisan commands."
+  when: not artisan_stat.stat.exists
