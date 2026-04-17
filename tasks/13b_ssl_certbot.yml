@@ -23,9 +23,9 @@
           listen 80;
           listen [::]:80;
           server_name {{ app_domain }};
-          root /var/www/html;
+          root {{ deploy_path }}/public;
           location /.well-known/acme-challenge/ {
-              root /var/www/html;
+              root {{ deploy_path }}/public;
           }
           location / {
               return 200 'OK';

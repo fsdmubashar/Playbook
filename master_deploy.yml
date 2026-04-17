@@ -1,271 +1,15 @@
 ---
 # =============================================================================
-# UNIVERSAL APPLICATION DEPLOYMENT & DISASTER RECOVERY TOOL
-# Version : 4.0 (Final - Production Ready)
-# Run From: LOCAL THINKPAD only - NEVER from target server
+# PHP/LARAVEL APPLICATION DEPLOYMENT & RECOVERY TOOL
+# Version : 5.1 (Prompt & Auto-Optimiztion Refined)
 # Usage   : ansible-playbook -i inventory.ini master_deploy.yml --limit <IP>
 # =============================================================================
 
-- name: "Universal App Deployment & Disaster Recovery"
+- name: "PHP/Laravel App Deployment"
   hosts: all
   become: yes
-  gather_facts: yes
-
-  # ============================================================
-  # VARS_PROMPT
-  # RULE: default values mein {{ variable }} use BILKUL NAHI karna
-  # ============================================================
-  vars_prompt:
-
-    - name: execution_context
-      prompt: |
-
-        ╔══════════════════════════════════════════╗
-        ║   UNIVERSAL DEPLOYMENT TOOL v4.0         ║
-        ╚══════════════════════════════════════════╝
-        Target Server:
-          [localhost] - Is hi server par chal raha hai
-          [remote]    - Kisi aur server par deploy karna hai
-        Choice
-      private: no
-      default: "remote"
-
-    - name: deploy_mode
-      prompt: |
-
-        Deployment Mode:
-          [1] Fresh Recovery  - Naya server / naya deployment
-          [2] Re-configure    - Existing server update / live crash fix
-        Choice
-      private: no
-      default: "1"
-
-    - name: app_name
-      prompt: |
-
-        App Name (lowercase, underscore format)
-        Yahi Linux user banta hai
-        Example: allmath_com  OR  laraval_app
-        App Name
-      private: no
-
-    - name: app_domain
-      prompt: |
-
-        App Domain ya IP Address:
-          Domain → laraval.muazahmad.online  (SSL lagega)
-          IP     → 64.227.161.61              (SSL nahi lagega)
-        Value
-      private: no
-
-    - name: ssl_choice
-      prompt: |
-        SSL/HTTPS add karna hai?
-          [no]  - Port 80 only (no 443)
-          [yes] - LetsEncrypt SSL (sirf domain ho to)
-        Choice
-      private: no
-      default: "no"
-
-    - name: deploy_path
-      prompt: "Deployment Path (e.g., /var/www/html/laraval.app)"
-      private: no
-      default: "/var/www/html/myapp"
-
-    - name: stack_type
-      prompt: |
-
-        Application Stack:
-          [php]    - Laravel / Core PHP
-          [python] - Django / FastAPI
-          [nodejs] - Node.js / Express / Next.js
-        Stack
-      private: no
-      default: "php"
-
-    - name: php_version
-      prompt: "PHP Version (PHP stack ke liye, default: 8.2)"
-      private: no
-      default: "8.2"
-
-    - name: python_version
-      prompt: "Python Version (Python stack ke liye, default: 3.11)"
-      private: no
-      default: "3.11"
-
-    - name: source_type
-      prompt: |
-
-        Code Source:
-          [git]   - GitHub / Bitbucket se clone
-          [rsync] - Remote server se copy
-        Source
-      private: no
-      default: "git"
-
-    - name: git_url
-      prompt: "Git Repository URL (e.g., https://github.com/org/repo.git)"
-      private: no
-      default: "none"
-
-    - name: git_branch
-      prompt: "Git Branch (e.g., main / master / production)"
-      private: no
-      default: "main"
-
-    - name: rsync_source
-      prompt: "rsync Source (user@host:/path/to/app) - rsync mode ke liye"
-      private: no
-      default: "none"
-
-    - name: db_name
-      prompt: "Database Name"
-      private: no
-
-    - name: db_user
-      prompt: "Database Username"
-      private: no
-
-    - name: db_password
-      prompt: "Database Password (hidden)"
-      private: yes
-
-    - name: sql_dump_path
-      prompt: "SQL Dump local path (Fresh Recovery) - none to skip, OR 'auto' agar DB server se lena hai"
-      private: no
-      default: "none"
-
-    - name: take_dump
-      prompt: |
-
-        Purane server ki application DB ka dump lena hai?
-          [no]  - Nahi (fresh deploy, koi import nahi)
-          [yes] - Purane server se sirf us application ki DB dump lo aur naye server par import karo
-        Choice
-      private: no
-      default: "no"
-
-    - name: dump_db_server_ip
-      prompt: |
-
-        PURANE SERVER ka IP (jahan application abhi chal rahi hai)
-        Yahan SSH kar ke sirf us application ki DB ka dump liya jayega
-        (take_dump=no ho to koi zaroorat nahi - none likhein)
-        IP
-      private: no
-      default: "none"
-
-    - name: dump_db_server_user
-      prompt: "Purane server ka SSH User (e.g., root)"
-      private: no
-      default: "root"
-
-    - name: dump_db_server_key
-      prompt: "Purane server ka SSH Key path (e.g., ~/.ssh/id_rsa)"
-      private: no
-      default: "~/.ssh/id_rsa"
-
-    - name: dump_db_name
-      prompt: |
-
-        Sirf KIS Database ka dump lena hai?
-        (Purane server par us application ki specific DB ka naam)
-        Example: laraval_db  ya  allmath_db
-        DB Name
-      private: no
-      default: "none"
-
-    - name: dump_db_user
-      prompt: "Purane server DB ka Username (us database ka)"
-      private: no
-      default: "root"
-
-    - name: dump_db_password
-      prompt: "Purane server DB ka Password (hidden)"
-      private: yes
-
-    - name: db_direct_access
-      prompt: |
-
-        Kya purana server naye deploy server ko directly reach kar sakta hai?
-          [yes] - Purana server → Naya server par direct rsync (same datacenter)
-          [no]  - Purana server → Local ThinkPad → Naya server (alag datacenters)
-        Choice
-      private: no
-      default: "no"
-
-    - name: redis_host
-      prompt: "Redis Host"
-      private: no
-      default: "127.0.0.1"
-
-    - name: redis_port
-      prompt: "Redis Port"
-      private: no
-      default: "6379"
-
-    - name: php_pm_max_children
-      prompt: "PHP-FPM pm.max_children (default: 50)"
-      private: no
-      default: "50"
-
-    - name: gunicorn_port
-      prompt: "Gunicorn Port (Python only, default: 8000)"
-      private: no
-      default: "8000"
-
-    - name: node_port
-      prompt: "Node.js Port (Node only, default: 3000)"
-      private: no
-      default: "3000"
-
-  # ============================================================
-  # COMPUTED VARIABLES
-  # vars_prompt ke BAAD set hote hain - yahan safe hai
-  # ============================================================
-  vars:
-    # runtime prompt se SSL enable/disable decide hota hai
-    enable_ssl: "{{ ssl_choice == 'yes' }}"
-    # Mode flags
-    is_fresh:     "{{ deploy_mode == '1' }}"
-    is_reconfig:  "{{ deploy_mode == '2' }}"
-    is_git:       "{{ source_type == 'git' }}"
-    is_rsync:     "{{ source_type == 'rsync' }}"
-    has_sql_dump: "{{ sql_dump_path != 'none' }}"
-
-    # Domain vs IP auto-detect
-    # Regex: sirf digits aur dots = IP address = is_domain false
-    is_domain: "{{ not (app_domain | regex_search('^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$')) }}"
-
-    # SSL label
-    # - domain + ssl_choice=yes => LetsEncrypt
-    # - else => port 80 only
-    ssl_label: "{{ 'LetsEncrypt-domain' if (is_domain | bool and enable_ssl | bool) else 'SSL disabled (port 80 only)' }}"
-
-    # Let's Encrypt cert paths
-    le_cert_path: "/etc/letsencrypt/live/{{ app_domain }}/fullchain.pem"
-    le_key_path:  "/etc/letsencrypt/live/{{ app_domain }}/privkey.pem"
-
-    # PHP-FPM paths
-    php_fpm_socket: "/run/php/php{{ php_version }}-fpm-{{ app_name }}.sock"
-    php_pool_conf:  "/etc/php/{{ php_version }}/fpm/pool.d/{{ app_name }}.conf"
-
-    # Nginx paths
-    nginx_available: "/etc/nginx/sites-available/{{ app_name }}"
-    nginx_enabled:   "/etc/nginx/sites-enabled/{{ app_name }}"
-
-    # App paths
-    app_home:    "/home/{{ app_name }}"
-    app_venv:    "{{ deploy_path }}/.venv"
-    app_log_dir: "/var/log/apps/{{ app_name }}"
-
-    # PHP-FPM pool calculated values
-    php_pm_start_servers: "{{ [(php_pm_max_children | int / 4) | int, 5] | max }}"
-    php_pm_min_spare:     "{{ [(php_pm_max_children | int / 5) | int, 5] | max }}"
-    php_pm_max_spare:     "{{ [(php_pm_max_children | int / 2) | int, 10] | max }}"
-
-  # mysql_login_unix_socket, sql_import_merge_mode, sql_cleanup_after_import:
-  # set in group_vars/all.yml (or -e)
+  gather_facts: no
+  strategy: linear
 
   # ============================================================
   # HANDLERS
@@ -287,9 +31,304 @@
         state: restarted
 
   # ============================================================
-  # PRE-TASKS
+  # PRE-TASKS (PROMPTS AND FACT GATHERING)
   # ============================================================
   pre_tasks:
+    - name: "System | Gather minimal facts (memory, OS)"
+      setup:
+        gather_subset:
+          - hardware
+          - date_time
+      tags: [always]
+
+    - name: "Prompt | Execute Interactive Mode?"
+      debug:
+        msg: "Interactive variables collection starting. Pass -e 'var=value' to skip prompts."
+      tags: [always]
+
+    # 1. deploy_mode
+    - name: "Prompt | deploy_mode"
+      pause:
+        prompt: "Deployment Mode: [1] Fresh Recovery  [2] Re-configure\nChoice [1]"
+      register: prompt_deploy_mode
+      when: deploy_mode is not defined
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | deploy_mode"
+      set_fact:
+        deploy_mode: "{{ deploy_mode | default(prompt_deploy_mode.user_input | default('1', true), true) }}"
+
+    # 2. app_name
+    - name: "Prompt | app_name"
+      pause:
+        prompt: "App Name (lowercase, underscore format - e.g., laravel_app)"
+      register: prompt_app_name
+      when: app_name is not defined
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | app_name"
+      set_fact:
+        app_name: "{{ app_name | default(prompt_app_name.user_input, true) }}"
+      failed_when: app_name | length == 0
+
+    # 3. app_domain
+    - name: "Prompt | app_domain"
+      pause:
+        prompt: "App Domain or IP Address (e.g., example.com or 1.1.1.1)"
+      register: prompt_app_domain
+      when: app_domain is not defined
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | app_domain"
+      set_fact:
+        app_domain: "{{ app_domain | default(prompt_app_domain.user_input, true) }}"
+      failed_when: app_domain | length == 0
+
+    # 4. ssl_choice
+    - name: "Prompt | ssl_choice"
+      pause:
+        prompt: "Enable LetsEncrypt SSL? (domain only) [yes/no]\nChoice [no]"
+      register: prompt_ssl_choice
+      when: ssl_choice is not defined
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | ssl_choice"
+      set_fact:
+        ssl_choice: "{{ ssl_choice | default(prompt_ssl_choice.user_input | default('no', true), true) }}"
+
+    # 5. deploy_path
+    - name: "Prompt | deploy_path"
+      pause:
+        prompt: "Deployment Path (e.g., /var/www/html/{{ app_name }})\nPath [/var/www/html/{{ app_name }}]"
+      register: prompt_deploy_path
+      when: deploy_path is not defined
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | deploy_path"
+      set_fact:
+        deploy_path: "{{ deploy_path | default(prompt_deploy_path.user_input | default('/var/www/html/' ~ app_name, true), true) }}"
+
+    # 6. php_version
+    - name: "Prompt | php_version"
+      pause:
+        prompt: "PHP Version\nVersion [8.2]"
+      register: prompt_php_version
+      when: php_version is not defined
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | php_version"
+      set_fact:
+        php_version: "{{ php_version | default(prompt_php_version.user_input | default('8.2', true), true) }}"
+
+    # 7. source_type
+    - name: "Prompt | source_type"
+      pause:
+        prompt: "Code Source: [git] (GitHub/Bitbucket) or [rsync] (Copy from another server)\nSource [git]"
+      register: prompt_source_type
+      when: source_type is not defined
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | source_type"
+      set_fact:
+        source_type: "{{ source_type | default(prompt_source_type.user_input | default('git', true), true) }}"
+
+    # 8. Git vs Rsync Conditionals
+    - name: "Prompt | git_url"
+      pause:
+        prompt: "Git Repository URL (e.g., git@github.com:org/repo.git)"
+      register: prompt_git_url
+      when: 
+        - git_url is not defined
+        - source_type == 'git'
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | git_url"
+      set_fact:
+        git_url: "{{ git_url | default(prompt_git_url.user_input | default('none', true), true) }}"
+      when: source_type == 'git'
+
+    - name: "Prompt | git_branch"
+      pause:
+        prompt: "Git Branch\nBranch [main]"
+      register: prompt_git_branch
+      when: 
+        - git_branch is not defined
+        - source_type == 'git'
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | git_branch"
+      set_fact:
+        git_branch: "{{ git_branch | default(prompt_git_branch.user_input | default('main', true), true) }}"
+      when: source_type == 'git'
+
+    - name: "Prompt | key_location"
+      pause:
+        prompt: "Where is the Git Private Key located? [local/remote/configured]\nLocation [configured]"
+      register: prompt_key_location
+      when: 
+        - key_location is not defined
+        - source_type == 'git'
+      run_once: true
+      delegate_to: localhost
+
+    - name: "Set | key_location"
+      set_fact:
+        key_location: "{{ key_location | default(prompt_key_location.user_input | default('configured', true), true) }}"
+      when: source_type == 'git'
+
+    - name: "Prompt | git_ssh_key"
+      pause:
+        prompt: "Provide the absolute path to the Private Key.\nPath"
+      register: prompt_git_ssh_key
+      when:
+        - git_ssh_key is not defined
+        - source_type == 'git'
+        - key_location in ['local', 'remote']
+      run_once: true
+      delegate_to: localhost
+
+    - name: "Set | git_ssh_key"
+      set_fact:
+        git_ssh_key: "{{ git_ssh_key | default(prompt_git_ssh_key.user_input | default('', true), true) }}"
+      when: 
+        - source_type == 'git'
+        - key_location in ['local', 'remote']
+
+    - name: "Fail | No SSH Key provided"
+      fail:
+        msg: "Deployment aborted: No SSH key provided for private repository access."
+      when: 
+        - source_type == 'git'
+        - key_location in ['local', 'remote']
+        - git_ssh_key | length == 0
+
+    - name: "Prompt | rsync_source"
+      pause:
+        prompt: "Rsync Source (e.g., user@host:/path/to/app)"
+      register: prompt_rsync_source
+      when: 
+        - rsync_source is not defined
+        - source_type == 'rsync'
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | rsync_source"
+      set_fact:
+        rsync_source: "{{ rsync_source | default(prompt_rsync_source.user_input | default('none', true), true) }}"
+      when: source_type == 'rsync'
+
+    # 9. Database Info
+    - name: "Prompt | db_name"
+      pause:
+        prompt: "Database Name"
+      register: prompt_db_name
+      when: db_name is not defined
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | db_name"
+      set_fact:
+        db_name: "{{ db_name | default(prompt_db_name.user_input, true) }}"
+      failed_when: db_name | length == 0
+
+    - name: "Prompt | db_user"
+      pause:
+        prompt: "Database Username"
+      register: prompt_db_user
+      when: db_user is not defined
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | db_user"
+      set_fact:
+        db_user: "{{ db_user | default(prompt_db_user.user_input, true) }}"
+      failed_when: db_user | length == 0
+
+    - name: "Prompt | db_password"
+      pause:
+        prompt: "Database Password"
+        echo: no
+      register: prompt_db_password
+      when: db_password is not defined
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | db_password"
+      set_fact:
+        db_password: "{{ db_password | default(prompt_db_password.user_input, true) }}"
+
+    - name: "Prompt | restore_db"
+      pause:
+        prompt: "Restore Golden Copy DB from Backup Server? [yes/no]\nChoice [no]"
+      register: prompt_restore_db
+      when: restore_db is not defined and deploy_mode == '1'
+      run_once: true
+      delegate_to: localhost
+
+
+
+    - name: "Set | restore_db"
+      set_fact:
+        restore_db: "{{ restore_db | default(prompt_restore_db.user_input | default('no', true), true) }}"
+      when: deploy_mode == '1'
+
+    # 10. Computed Real-Time Variables
+    - name: "Compute | Global Facts"
+      set_fact:
+        enable_ssl: "{{ ssl_choice == 'yes' }}"
+        is_fresh: "{{ deploy_mode == '1' }}"
+        is_reconfig: "{{ deploy_mode == '2' }}"
+        is_git: "{{ source_type == 'git' }}"
+        is_rsync: "{{ source_type == 'rsync' }}"
+        is_domain: "{{ not (app_domain | regex_search('^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$')) }}"
+
+    - name: "Compute | Path Facts"
+      set_fact:
+        ssl_label: "{{ 'LetsEncrypt-domain' if (is_domain | bool and enable_ssl | bool) else 'SSL disabled (port 80 only)' }}"
+        le_cert_path: "/etc/letsencrypt/live/{{ app_domain }}/fullchain.pem"
+        le_key_path: "/etc/letsencrypt/live/{{ app_domain }}/privkey.pem"
+        php_fpm_socket: "/run/php/php{{ php_version }}-fpm-{{ app_name }}.sock"
+        php_pool_conf: "/etc/php/{{ php_version }}/fpm/pool.d/{{ app_name }}.conf"
+        nginx_available: "/etc/nginx/sites-available/{{ app_name }}"
+        nginx_enabled: "/etc/nginx/sites-enabled/{{ app_name }}"
+        app_home: "/home/{{ app_name }}"
+        app_log_dir: "/var/log/apps/{{ app_name }}"
+
     - name: "Deployment Summary"
       debug:
         msg:
@@ -309,15 +348,14 @@
         state: directory
         mode: "0755"
 
-    - name: "[PRE] Fetch SQL dump from remote source (inventory)"
-      include_tasks: tasks/prefetch_remote_sql.yml
+    - name: "[PRE] Fetch Golden Copy DB dump from Backup Server"
+      include_tasks: tasks/prefetch_golden_copy.yml
       when:
         - deploy_mode == "1"
-        - remote_sql_source_host is defined
-        - (remote_sql_source_host | default('') | trim | length) > 0
-        - (remote_sql_source_path | default('') | trim | length) > 0
-        - (sql_dump_path | default('none')) in ['none', 'auto']
-        - (take_dump | default('no')) != 'yes'
+        - restore_db == "yes"
+        - backup_server_host is defined
+        - backup_server_host | length > 0
+      tags: [db-fetch]
 
   # ============================================================
   # MAIN TASKS FLOW
@@ -325,102 +363,70 @@
   tasks:
 
     # ── PHASE 1: FRESH - Stack Installation ──────────────────
-    - name: "[1/8] FRESH | System preparation"
+    - name: "[1/7] FRESH | System preparation"
       include_tasks: tasks/01_system_prep.yml
       when: deploy_mode == "1"
-      tags: [fresh, system]
+      tags: [fresh, system-prep]
 
-    - name: "[2/8] FRESH | Nginx install aur global config"
+    - name: "[2/7] FRESH | Nginx install aur global config"
       include_tasks: tasks/02_install_nginx.yml
       when: deploy_mode == "1"
-      tags: [fresh, nginx]
+      tags: [fresh, nginx-install]
 
-    - name: "[3/8] FRESH | PHP Stack install"
+    - name: "[3/7] FRESH | PHP Stack install"
       include_tasks: tasks/03_install_php.yml
-      when:
-        - deploy_mode == "1"
-        - stack_type == "php"
-      tags: [fresh, php]
+      when: deploy_mode == "1"
+      tags: [fresh, php-install]
 
-    - name: "[3/8] FRESH | Python Stack install"
-      include_tasks: tasks/04_install_python.yml
-      when:
-        - deploy_mode == "1"
-        - stack_type == "python"
-      tags: [fresh, python]
-
-    - name: "[3/8] FRESH | Node.js Stack install"
-      include_tasks: tasks/05_install_nodejs.yml
-      when:
-        - deploy_mode == "1"
-        - stack_type == "nodejs"
-      tags: [fresh, nodejs]
-
-    - name: "[4/8] FRESH | MariaDB install aur configure"
+    - name: "[4/7] FRESH | MariaDB install aur configure"
       include_tasks: tasks/06_install_mariadb.yml
       when: deploy_mode == "1"
-      tags: [fresh, database]
+      tags: [fresh, db-setup]
 
-    - name: "[4/8] FRESH | Redis install aur configure"
+    - name: "[4/7] FRESH | Redis install aur configure"
       include_tasks: tasks/06b_install_redis.yml
       when: deploy_mode == "1"
-      tags: [fresh, redis]
+      tags: [fresh, redis-install]
 
     # ── PHASE 2: App User, Code, DB, Env ─────────────────────
-    - name: "[5/8] ALL | App Linux user create karo"
+    - name: "[5/7] ALL | App Linux user create karo"
       include_tasks: tasks/07_app_user.yml
-      tags: [always, user]
+      tags: [always, app-user]
 
-    - name: "[5/8] ALL | Code deploy karo"
+    - name: "[5/7] ALL | Code deploy karo"
       include_tasks: tasks/08_code_deploy.yml
-      tags: [always, code]
+      tags: [always, code-deploy, git-pull]
 
-    - name: "[6/8] FRESH | DB Dump lao (agar requested)"
-      include_tasks: tasks/00_db_dump.yml
-      when:
-        - deploy_mode == "1"
-        - take_dump == "yes"
-        - dump_db_server_ip != "none"
-      tags: [fresh, dump]
-
-    # Order: (optional 00 dump) → 09 import → … → 14 includes "php artisan migrate --force" LAST among DB steps
-    - name: "[6/8] FRESH | Database create aur restore"
+    - name: "[5/7] FRESH | Database create aur restore"
       include_tasks: tasks/09_database_restore.yml
       when: deploy_mode == "1"
-      tags: [fresh, database]
+      tags: [fresh, db-restore]
 
-    - name: "[6/8] ALL | .env configure karo"
+    - name: "[6/7] ALL | .env configure karo"
       include_tasks: tasks/10_env_config.yml
-      tags: [always, config]
+      tags: [always, env-config]
 
     # ── PHASE 3: Services ─────────────────────────────────────
-    - name: "[7/8] PHP | FPM pool configure karo"
+    - name: "[6/7] PHP | FPM pool configure karo"
       include_tasks: tasks/11_fpm_pool.yml
-      when: stack_type == "php"
-      tags: [always, fpm]
+      tags: [always, fpm-pool]
 
-    - name: "[7/8] Python | Gunicorn service configure karo"
-      include_tasks: tasks/12_python_service.yml
-      when: stack_type == "python"
-      tags: [always, gunicorn]
-
-    - name: "[7/8] ALL | SSL - domain hai to LetsEncrypt"
+    - name: "[6/7] ALL | SSL - domain hai to LetsEncrypt"
       include_tasks: tasks/13b_ssl_certbot.yml
       when:
         - enable_ssl | bool
         - is_domain | bool
       tags: [always, ssl]
 
-    - name: "[7/8] ALL | Nginx vhost configure karo"
+    - name: "[6/7] ALL | Nginx vhost configure karo"
       include_tasks: tasks/13_nginx_config.yml
-      tags: [always, nginx]
+      tags: [always, nginx-config]
 
     # ── PHASE 4: App Commands aur Verify ──────────────────────
-    # Flow: 1) SQL import already ran in 09 → 2) here: php artisan migrate --force (Laravel) after .env
-    - name: "[8/8] ALL | App-specific commands chalao"
+    - name: "[7/7] ALL | App-specific commands chalao"
       include_tasks: tasks/14_app_commands.yml
-      tags: [always, commands]
+      tags: [always, app-commands, composer, artisan, migrate]
 
-    - name: "[8/8] ALL | Verify aur Reload services"
+    - name: "[7/7] ALL | Verify aur Reload services"
       include_tasks: tasks/15_verify_reload.yml
       tags: [always, verify]

@@ -1,7 +1,7 @@
 # ==============================================================================
 # Nginx Vhost - {{ app_name }}
 # Domain/IP : {{ app_domain }}
-# Stack     : {{ stack_type }}
+# Stack     : PHP / Laravel
 # Mode      : Port 80 only (no SSL/443)
 # ==============================================================================
 server {
@@ -9,10 +9,8 @@ server {
     listen [::]:80;
     server_name {{ app_domain }};
 
-{% if stack_type == "php" %}
     root  {{ deploy_path }}/public;
     index index.php index.html index.htm;
-{% endif %}
 
     access_log /var/log/nginx/{{ app_name }}_access.log main;
     error_log  /var/log/nginx/{{ app_name }}_error.log warn;
@@ -34,7 +32,6 @@ server {
     location = /favicon.ico { access_log off; log_not_found off; }
     location = /robots.txt  { access_log off; log_not_found off; }
 
-{% if stack_type == "php" %}
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
@@ -67,45 +64,4 @@ server {
         alias {{ deploy_path }}/storage/app/public;
         try_files $uri $uri/ =404;
     }
-
-{% elif stack_type == "python" %}
-    location / {
-        proxy_pass         http://127.0.0.1:{{ gunicorn_port }};
-        proxy_http_version 1.1;
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        proxy_set_header   Upgrade           $http_upgrade;
-        proxy_set_header   Connection        "upgrade";
-        proxy_connect_timeout 60s;
-        proxy_send_timeout    300s;
-        proxy_read_timeout    300s;
-    }
-    location /static/ { alias {{ deploy_path }}/staticfiles/; expires 30d; }
-    location /media/  { alias {{ deploy_path }}/media/; expires 7d; }
-
-{% elif stack_type == "nodejs" %}
-    location / {
-        proxy_pass         http://127.0.0.1:{{ node_port }};
-        proxy_http_version 1.1;
-        proxy_set_header   Upgrade           $http_upgrade;
-        proxy_set_header   Connection        "upgrade";
-        proxy_set_header   Host              $host;
-        proxy_set_header   X-Real-IP         $remote_addr;
-        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto $scheme;
-        proxy_cache_bypass $http_upgrade;
-        proxy_connect_timeout 60s;
-        proxy_send_timeout    300s;
-        proxy_read_timeout    300s;
-    }
-    location /_next/static/ {
-        alias {{ deploy_path }}/.next/static/;
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-        access_log off;
-    }
-
-{% endif %}
 }

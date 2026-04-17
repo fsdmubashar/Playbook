@@ -1,0 +1,29 @@
+---
+# Task: Pre-fetch Golden Copy DB Dump
+# Fetch to Controller (ThinkPad / Cloud Server), then push to Target
+
+- name: "GoldenCopy | Fetch dump from backup server to Controller"
+  shell: |
+    scp -o StrictHostKeyChecking=no \
+      -i {{ backup_server_key_path }} \
+      {{ backup_server_user }}@{{ backup_server_host }}:{{ remote_backup_path }} \
+      /tmp/{{ app_name }}_prefetch.sql
+  delegate_to: localhost
+  become: no
+  tags: [db-fetch]
+
+- name: "GoldenCopy | Copy dump from Controller to Target"
+  copy:
+    src: "/tmp/{{ app_name }}_prefetch.sql"
+    dest: "/tmp/{{ app_name }}_restore.sql"
+    mode: "0644"
+  tags: [db-fetch]
+
+- name: "GoldenCopy | Cleanup Controller temp dump"
+  file:
+    path: "/tmp/{{ app_name }}_prefetch.sql"
+    state: absent
+  delegate_to: localhost
+  become: no
+  tags: [db-fetch]
+  ignore_errors: yes

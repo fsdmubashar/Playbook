@@ -3,29 +3,38 @@
 # Git clone / rsync / git pull
 # RULE: app_name user se clone taake ownership sahi ho
 
-- name: "Code | [FRESH+GIT] Git clone"
+- name: "Code | Ensure Bitbucket/GitHub host key in known_hosts"
+  known_hosts:
+    name: bitbucket.org
+    key: "{{ lookup('pipe', 'ssh-keyscan -t rsa bitbucket.org 2>/dev/null') }}"
+    path: "{{ app_home }}/.ssh/known_hosts"
+    state: present
+  become_user: "{{ app_name }}"
+  ignore_errors: yes
+
+- name: "Code | [GIT] Git clone"
   git:
     repo: "{{ git_url }}"
     dest: "{{ deploy_path }}"
     version: "{{ git_branch }}"
     accept_hostkey: yes
+    key_file: "{% if git_ssh_key is defined and git_ssh_key | length > 0 %}{{ app_home }}/.ssh/id_rsa{% else %}omit{% endif %}"
     force: yes
   become_user: "{{ app_name }}"
   environment:
     HOME: "{{ app_home }}"
+    GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=no{% if git_ssh_key is defined and git_ssh_key | length > 0 %} -i {{ app_home }}/.ssh/id_rsa{% endif %}"
   when:
-    - deploy_mode == "1"
     - source_type == "git"
     - git_url != "none"
 
-- name: "Code | [FRESH+RSYNC] rsync copy"
+- name: "Code | [RSYNC] rsync copy"
   shell: |
     rsync -avz --progress \
       -e "ssh -o StrictHostKeyChecking=no" \
       {{ rsync_source }}/ \
       {{ deploy_path }}/
   when:
-    - deploy_mode == "1"
     - source_type == "rsync"
     - rsync_source != "none"
 
