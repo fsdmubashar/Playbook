@@ -9,6 +9,7 @@
   hosts: all
   become: yes
   gather_facts: no
+  strategy: linear
 
   # ============================================================
   # HANDLERS
@@ -51,6 +52,10 @@
         prompt: "Deployment Mode: [1] Fresh Recovery  [2] Re-configure\nChoice [1]"
       register: prompt_deploy_mode
       when: deploy_mode is not defined
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | deploy_mode"
       set_fact:
@@ -62,6 +67,10 @@
         prompt: "App Name (lowercase, underscore format - e.g., laravel_app)"
       register: prompt_app_name
       when: app_name is not defined
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | app_name"
       set_fact:
@@ -74,6 +83,10 @@
         prompt: "App Domain or IP Address (e.g., example.com or 1.1.1.1)"
       register: prompt_app_domain
       when: app_domain is not defined
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | app_domain"
       set_fact:
@@ -86,6 +99,10 @@
         prompt: "Enable LetsEncrypt SSL? (domain only) [yes/no]\nChoice [no]"
       register: prompt_ssl_choice
       when: ssl_choice is not defined
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | ssl_choice"
       set_fact:
@@ -97,6 +114,10 @@
         prompt: "Deployment Path (e.g., /var/www/html/{{ app_name }})\nPath [/var/www/html/{{ app_name }}]"
       register: prompt_deploy_path
       when: deploy_path is not defined
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | deploy_path"
       set_fact:
@@ -108,6 +129,10 @@
         prompt: "PHP Version\nVersion [8.2]"
       register: prompt_php_version
       when: php_version is not defined
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | php_version"
       set_fact:
@@ -119,6 +144,10 @@
         prompt: "Code Source: [git] (GitHub/Bitbucket) or [rsync] (Copy from another server)\nSource [git]"
       register: prompt_source_type
       when: source_type is not defined
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | source_type"
       set_fact:
@@ -133,6 +162,10 @@
         - git_url is not defined
         - source_type == 'git'
         - deploy_mode == '1'
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | git_url"
       set_fact:
@@ -146,6 +179,10 @@
       when: 
         - git_branch is not defined
         - source_type == 'git'
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | git_branch"
       set_fact:
@@ -160,6 +197,10 @@
         - git_ssh_key is not defined
         - source_type == 'git'
         - deploy_mode == '1'
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Prompt | git_ssh_key"
       pause:
@@ -170,6 +211,10 @@
         - source_type == 'git'
         - deploy_mode == '1'
         - prompt_key_configured.user_input | default('no', true) != 'yes'
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | git_ssh_key"
       set_fact:
@@ -196,6 +241,10 @@
         - rsync_source is not defined
         - source_type == 'rsync'
         - deploy_mode == '1'
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | rsync_source"
       set_fact:
@@ -208,6 +257,10 @@
         prompt: "Database Name"
       register: prompt_db_name
       when: db_name is not defined
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | db_name"
       set_fact:
@@ -219,6 +272,10 @@
         prompt: "Database Username"
       register: prompt_db_user
       when: db_user is not defined
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | db_user"
       set_fact:
@@ -231,6 +288,10 @@
         echo: no
       register: prompt_db_password
       when: db_password is not defined
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | db_password"
       set_fact:
@@ -241,6 +302,10 @@
         prompt: "Restore Golden Copy DB from Backup Server? [yes/no]\nChoice [no]"
       register: prompt_restore_db
       when: restore_db is not defined and deploy_mode == '1'
+      run_once: true
+      delegate_to: localhost
+
+
 
     - name: "Set | restore_db"
       set_fact:

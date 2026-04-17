@@ -10,17 +10,22 @@
 
 - name: "FPM | Auto-calculate PHP-FPM Resources (min 5)"
   set_fact:
-    php_pm_max_children: "{{ [ (((ansible_memtotal_mb | int) - 512) / 60) | round(0, 'floor') | int, 5 ] | max }}"
+    fpm_ram_potential: "{{ (((ansible_memtotal_mb | int) * 0.40) / 60) | round(0, 'floor') | int }}"
+    fpm_cpu_potential: "{{ (ansible_processor_vcpus | default(1) | int) * 10 }}"
+
+- name: "FPM | Set Final max_children with Safety Floor"
+  set_fact:
+    php_pm_max_children: "{{ [ [fpm_ram_potential | int, fpm_cpu_potential | int] | min, 5 ] | max }}"
 
 - name: "FPM | Auto-calculate Spares"
   set_fact:
-    php_pm_start_servers: "{{ [ (php_pm_max_children | int / 4) | round(0, 'floor') | int, 5 ] | max }}"
-    php_pm_min_spare: "{{ [ (php_pm_max_children | int / 5) | round(0, 'floor') | int, 5 ] | max }}"
-    php_pm_max_spare: "{{ [ (php_pm_max_children | int / 2) | round(0, 'floor') | int, 10 ] | max }}"
+    php_pm_start_servers: "{{ [ (php_pm_max_children | int * 0.25) | round(0, 'ceil') | int, 1 ] | max }}"
+    php_pm_min_spare:     "{{ [ (php_pm_max_children | int * 0.25) | round(0, 'ceil') | int, 1 ] | max }}"
+    php_pm_max_spare:     "{{ [ (php_pm_max_children | int * 0.50) | round(0, 'ceil') | int, 1 ] | max }}"
 
-- name: "FPM | Memory Formula Display"
+- name: "FPM | Memory/CPU Formula Display"
   debug:
-    msg: "RAM: {{ ansible_memtotal_mb }}MB -> Max Children: {{ php_pm_max_children }} (Reserving 512MB for OS)"
+    msg: "RAM Potential: {{ fpm_ram_potential }}, CPU Potential: {{ fpm_cpu_potential }} -> Final Max Children: {{ php_pm_max_children }}"
 
 - name: "FPM | Default www pool backup"
   copy:
