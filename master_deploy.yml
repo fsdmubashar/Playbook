@@ -188,44 +188,45 @@
         git_branch: "{{ git_branch | default(prompt_git_branch.user_input | default('main', true), true) }}"
       when: source_type == 'git'
 
-    - name: "Prompt | git_key_configured"
+    - name: "Prompt | key_location"
       pause:
-        prompt: "Is the Git SSH Deploy Key already configured on this server? [yes/no]\nChoice [no]"
-      register: prompt_key_configured
+        prompt: "Where is the Git Private Key located? [local/remote/configured]\nLocation [configured]"
+      register: prompt_key_location
       when: 
-        - git_ssh_key is not defined
+        - key_location is not defined
         - source_type == 'git'
       run_once: true
       delegate_to: localhost
 
-
+    - name: "Set | key_location"
+      set_fact:
+        key_location: "{{ key_location | default(prompt_key_location.user_input | default('configured', true), true) }}"
+      when: source_type == 'git'
 
     - name: "Prompt | git_ssh_key"
       pause:
-        prompt: "Path to the existing SSH Private Key on this server? [Default: /root/.ssh/id_rsa]\nPath [/root/.ssh/id_rsa]"
+        prompt: "Provide the absolute path to the Private Key.\nPath"
       register: prompt_git_ssh_key
       when:
         - git_ssh_key is not defined
         - source_type == 'git'
-        - prompt_key_configured.user_input | default('no', true) != 'yes'
+        - key_location in ['local', 'remote']
       run_once: true
       delegate_to: localhost
 
-
-
     - name: "Set | git_ssh_key"
       set_fact:
-        git_ssh_key: "{{ git_ssh_key | default(prompt_git_ssh_key.user_input | default('/root/.ssh/id_rsa', true), true) }}"
+        git_ssh_key: "{{ git_ssh_key | default(prompt_git_ssh_key.user_input | default('', true), true) }}"
       when: 
         - source_type == 'git'
-        - prompt_key_configured.user_input | default('no', true) != 'yes'
+        - key_location in ['local', 'remote']
 
     - name: "Fail | No SSH Key provided"
       fail:
         msg: "Deployment aborted: No SSH key provided for private repository access."
       when: 
         - source_type == 'git'
-        - prompt_key_configured.user_input | default('no', true) != 'yes'
+        - key_location in ['local', 'remote']
         - git_ssh_key | length == 0
 
     - name: "Prompt | rsync_source"

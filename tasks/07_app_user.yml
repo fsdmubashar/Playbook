@@ -31,7 +31,21 @@
     group: "{{ app_name }}"
     mode: "0700"
 
-- name: "AppUser | Transfer SSH Key to new user"
+- name: "AppUser | Transfer SSH Key (from Controller/Local)"
+  copy:
+    src: "{{ git_ssh_key }}"
+    dest: "{{ app_home }}/.ssh/id_rsa"
+    owner: "{{ app_name }}"
+    group: "{{ app_name }}"
+    mode: "0600"
+    remote_src: no
+  when:
+    - source_type == 'git'
+    - key_location | default('configured') == 'local'
+    - git_ssh_key is defined
+    - git_ssh_key | length > 0
+
+- name: "AppUser | Transfer SSH Key (from Target/Remote)"
   copy:
     src: "{{ git_ssh_key }}"
     dest: "{{ app_home }}/.ssh/id_rsa"
@@ -41,6 +55,7 @@
     remote_src: yes
   when:
     - source_type == 'git'
+    - key_location | default('configured') == 'remote'
     - git_ssh_key is defined
     - git_ssh_key | length > 0
     - git_ssh_key != (app_home + '/.ssh/id_rsa')
