@@ -202,7 +202,7 @@
 
     - name: "Prompt | git_ssh_key"
       pause:
-        prompt: "Provide the Private Key path (e.g., ~/.ssh/id_rsa). Press enter to abort.\nPath"
+        prompt: "Path to the existing SSH Private Key on this server? [Default: /root/.ssh/id_rsa]\nPath [/root/.ssh/id_rsa]"
       register: prompt_git_ssh_key
       when:
         - git_ssh_key is not defined
@@ -215,7 +215,7 @@
 
     - name: "Set | git_ssh_key"
       set_fact:
-        git_ssh_key: "{{ git_ssh_key | default(prompt_git_ssh_key.user_input | default('', true), true) }}"
+        git_ssh_key: "{{ git_ssh_key | default(prompt_git_ssh_key.user_input | default('/root/.ssh/id_rsa', true), true) }}"
       when: 
         - source_type == 'git'
         - prompt_key_configured.user_input | default('no', true) != 'yes'

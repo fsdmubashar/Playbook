@@ -18,12 +18,12 @@
     dest: "{{ deploy_path }}"
     version: "{{ git_branch }}"
     accept_hostkey: yes
-    key_file: "{{ git_ssh_key | default(omit) }}"
+    key_file: "{% if git_ssh_key is defined and git_ssh_key | length > 0 %}{{ app_home }}/.ssh/id_rsa{% else %}omit{% endif %}"
     force: yes
   become_user: "{{ app_name }}"
   environment:
     HOME: "{{ app_home }}"
-    GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=no{% if git_ssh_key is defined and git_ssh_key | length > 0 %} -i {{ git_ssh_key }}{% endif %}"
+    GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=no{% if git_ssh_key is defined and git_ssh_key | length > 0 %} -i {{ app_home }}/.ssh/id_rsa{% endif %}"
   when:
     - source_type == "git"
     - git_url != "none"
