@@ -44,27 +44,27 @@
   lineinfile:
     path: "{{ deploy_path }}/.env"
     regexp: "^{{ item.key }}="
-    line: "{{ item.key }}={{ item.value }}"
+    line: "{{ item.key }}={{ item.value | default(item.default_value, true) }}"
     create: yes
     owner: "{{ app_name }}"
     group: www-data
     mode: "0640"
   loop:
-    - { key: "APP_NAME",        value: "{{ app_name }}" }
-    - { key: "APP_URL",         value: "https://{{ app_domain }}" }
-    - { key: "APP_ENV",         value: "production" }
-    - { key: "APP_DEBUG",       value: "false" }
-    - { key: "DB_CONNECTION",   value: "mysql" }
-    - { key: "DB_HOST",         value: "127.0.0.1" }
-    - { key: "DB_PORT",         value: "3306" }
-    - { key: "DB_DATABASE",     value: "{{ db_name }}" }
-    - { key: "DB_USERNAME",     value: "{{ db_user }}" }
-    - { key: "DB_PASSWORD",     value: "{{ db_password }}" }
-    - { key: "REDIS_HOST",      value: "{{ redis_host }}" }
-    - { key: "REDIS_PORT",      value: "{{ redis_port }}" }
-    - { key: "CACHE_DRIVER",    value: "redis" }
-    - { key: "SESSION_DRIVER",  value: "redis" }
-    - { key: "QUEUE_CONNECTION", value: "redis" }
+    - { key: "APP_NAME",        value: "{{ app_name | default('') }}",        default_value: "laravel_app" }
+    - { key: "APP_URL",         value: "https://{{ app_domain | default('') }}", default_value: "http://localhost" }
+    - { key: "APP_ENV",         value: "{{ app_env | default('') }}",         default_value: "production" }
+    - { key: "APP_DEBUG",       value: "false",                               default_value: "false" }
+    - { key: "DB_CONNECTION",   value: "mysql",                               default_value: "mysql" }
+    - { key: "DB_HOST",         value: "{{ db_host | default('') }}",         default_value: "127.0.0.1" }
+    - { key: "DB_PORT",         value: "3306",                                default_value: "3306" }
+    - { key: "DB_DATABASE",     value: "{{ db_name | default('') }}",         default_value: "laravel" }
+    - { key: "DB_USERNAME",     value: "{{ db_user | default('') }}",         default_value: "root" }
+    - { key: "DB_PASSWORD",     value: "{{ db_password | default('') }}",     default_value: "" }
+    - { key: "REDIS_HOST",      value: "{{ redis_host | default('') }}",      default_value: "127.0.0.1" }
+    - { key: "REDIS_PORT",      value: "{{ redis_port | default('') }}",      default_value: "6379" }
+    - { key: "CACHE_DRIVER",    value: "redis",                               default_value: "redis" }
+    - { key: "SESSION_DRIVER",  value: "redis",                               default_value: "redis" }
+    - { key: "QUEUE_CONNECTION", value: "redis",                              default_value: "redis" }
 
 - name: "Env | Permissions confirm"
   file:

@@ -7,6 +7,10 @@
 default_php_version:    "8.2"
 default_redis_host:     "127.0.0.1"
 default_redis_port:     "6379"
+redis_host:             "127.0.0.1"
+redis_port:             "6379"
+db_host:                "127.0.0.1"
+app_env:                "production"
 nginx_user:             "www-data"
 
 # MariaDB config
