@@ -3,13 +3,18 @@
 # Fresh  → .env.example se copy + update
 # Reconfig → Existing .env update (lineinfile)
 
+- name: "Env | Check if .env already exists"
+  stat:
+    path: "{{ deploy_path }}/.env"
+  register: existing_env
+
 - name: "Env | .env.example check"
   stat:
     path: "{{ deploy_path }}/.env.example"
   register: env_example_stat
-  when: deploy_mode == "1"
+  when: not existing_env.stat.exists
 
-- name: "Env | [FRESH] .env.example se copy"
+- name: "Env | Copy .env.example"
   copy:
     src: "{{ deploy_path }}/.env.example"
     dest: "{{ deploy_path }}/.env"
@@ -19,11 +24,11 @@
     remote_src: yes
     force: no
   when:
-    - deploy_mode == "1"
+    - not existing_env.stat.exists
     - env_example_stat.stat is defined
     - env_example_stat.stat.exists
 
-- name: "Env | [FRESH] Blank .env create (agar .example nahi)"
+- name: "Env | Blank .env create (agar .example nahi)"
   file:
     path: "{{ deploy_path }}/.env"
     state: touch
@@ -31,7 +36,7 @@
     group: www-data
     mode: "0640"
   when:
-    - deploy_mode == "1"
+    - not existing_env.stat.exists
     - env_example_stat.stat is defined
     - not env_example_stat.stat.exists
 
@@ -60,7 +65,6 @@
     - { key: "CACHE_DRIVER",    value: "redis" }
     - { key: "SESSION_DRIVER",  value: "redis" }
     - { key: "QUEUE_CONNECTION", value: "redis" }
-  no_log: true
 
 - name: "Env | Permissions confirm"
   file:

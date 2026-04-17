@@ -12,7 +12,7 @@
   become_user: "{{ app_name }}"
   ignore_errors: yes
 
-- name: "Code | [FRESH+GIT] Git clone"
+- name: "Code | [GIT] Git clone"
   git:
     repo: "{{ git_url }}"
     dest: "{{ deploy_path }}"
@@ -25,18 +25,16 @@
     HOME: "{{ app_home }}"
     GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=no{% if git_ssh_key is defined and git_ssh_key | length > 0 %} -i {{ git_ssh_key }}{% endif %}"
   when:
-    - deploy_mode == "1"
     - source_type == "git"
     - git_url != "none"
 
-- name: "Code | [FRESH+RSYNC] rsync copy"
+- name: "Code | [RSYNC] rsync copy"
   shell: |
     rsync -avz --progress \
       -e "ssh -o StrictHostKeyChecking=no" \
       {{ rsync_source }}/ \
       {{ deploy_path }}/
   when:
-    - deploy_mode == "1"
     - source_type == "rsync"
     - rsync_source != "none"
 

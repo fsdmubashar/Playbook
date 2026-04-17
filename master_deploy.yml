@@ -161,7 +161,6 @@
       when: 
         - git_url is not defined
         - source_type == 'git'
-        - deploy_mode == '1'
       run_once: true
       delegate_to: localhost
 
@@ -196,7 +195,6 @@
       when: 
         - git_ssh_key is not defined
         - source_type == 'git'
-        - deploy_mode == '1'
       run_once: true
       delegate_to: localhost
 
@@ -209,7 +207,6 @@
       when:
         - git_ssh_key is not defined
         - source_type == 'git'
-        - deploy_mode == '1'
         - prompt_key_configured.user_input | default('no', true) != 'yes'
       run_once: true
       delegate_to: localhost
@@ -221,7 +218,6 @@
         git_ssh_key: "{{ git_ssh_key | default(prompt_git_ssh_key.user_input | default('', true), true) }}"
       when: 
         - source_type == 'git'
-        - deploy_mode == '1'
         - prompt_key_configured.user_input | default('no', true) != 'yes'
 
     - name: "Fail | No SSH Key provided"
@@ -229,7 +225,6 @@
         msg: "Deployment aborted: No SSH key provided for private repository access."
       when: 
         - source_type == 'git'
-        - deploy_mode == '1'
         - prompt_key_configured.user_input | default('no', true) != 'yes'
         - git_ssh_key | length == 0
 
@@ -240,7 +235,6 @@
       when: 
         - rsync_source is not defined
         - source_type == 'rsync'
-        - deploy_mode == '1'
       run_once: true
       delegate_to: localhost
 
